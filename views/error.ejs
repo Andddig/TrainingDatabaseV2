@@ -21,6 +21,13 @@
         
         <div class="error-message">
           <p><%= message || 'An unexpected error occurred.' %></p>
+          
+          <% if (locals.details) { %>
+            <div class="error-details">
+              <p><strong>Error Details:</strong></p>
+              <pre><%= details %></pre>
+            </div>
+          <% } %>
         </div>
         
         <div class="error-actions">

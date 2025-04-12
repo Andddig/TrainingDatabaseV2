@@ -1,0 +1,36 @@
+version: '3'
+services:
+  app:
+    build: .
+    container_name: bvar19-portal-dev
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - PORT=3000
+      - MONGODB_URI=mongodb://mongodb:27017/bvar19-portal
+      - SESSION_SECRET=dev_session_secret
+      - MICROSOFT_CLIENT_ID=${MICROSOFT_CLIENT_ID}
+      - MICROSOFT_CLIENT_SECRET=${MICROSOFT_CLIENT_SECRET}
+      - MICROSOFT_TENANT_ID=${MICROSOFT_TENANT_ID}
+      - CALLBACK_URL=${CALLBACK_URL}
+    depends_on:
+      - mongodb
+    volumes:
+      - ./:/app
+      - /app/node_modules
+    command: npm start
+
+  mongodb:
+    image: mongo:latest
+    container_name: bvar19-mongodb-dev
+    restart: unless-stopped
+    volumes:
+      - mongodb-data:/data/db
+    ports:
+      - "27017:27017"
+
+volumes:
+  mongodb-data:
+    driver: local 

@@ -13,12 +13,23 @@ const cookieParser = require('cookie-parser');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Connect to MongoDB
-mongoose.connect(process.env.MONGODB_URI)
-  .then(() => console.log('MongoDB connected'))
-  .catch(err => console.error('MongoDB connection error:', err));
+// MongoDB connection with retry logic
+const connectWithRetry = () => {
+  console.log('MongoDB connection attempt...');
+  mongoose.connect(process.env.MONGODB_URI)
+    .then(() => {
+      console.log('MongoDB connected successfully');
+    })
+    .catch(err => {
+      console.error('MongoDB connection error:', err);
+      console.log('Retrying connection in 5 seconds...');
+      setTimeout(connectWithRetry, 5000);
+    });
+};
 
-// User model
+connectWithRetry();
+
+// Load User model
 const User = mongoose.model('User', new mongoose.Schema({
   microsoftId: String,
   displayName: String,
@@ -30,7 +41,17 @@ const User = mongoose.model('User', new mongoose.Schema({
 }));
 
 // Middleware
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:"]
+    }
+  }
+}));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
@@ -42,10 +63,18 @@ app.set('view engine', 'ejs');
 
 // Session configuration
 app.use(session({
-  secret: process.env.SESSION_SECRET,
+  secret: process.env.SESSION_SECRET || 'fallback_secret_do_not_use_in_production',
   resave: false,
   saveUninitialized: false,
-  store: MongoStore.create({ mongoUrl: process.env.MONGODB_URI }),
+  store: MongoStore.create({ 
+    mongoUrl: process.env.MONGODB_URI,
+    touchAfter: 24 * 3600, // time period in seconds
+    crypto: {
+      secret: process.env.SESSION_SECRET || 'fallback_secret_do_not_use_in_production',
+    },
+    // Fallback to in-memory store if MongoDB is not available
+    fallbackMemory: true
+  }),
   cookie: {
     secure: process.env.NODE_ENV === 'production',
     maxAge: 24 * 60 * 60 * 1000 // 1 day
@@ -87,6 +116,7 @@ passport.use(new MicrosoftStrategy({
     
     return done(null, user);
   } catch (error) {
+    console.error('Authentication error:', error);
     return done(error);
   }
 }));
@@ -193,10 +223,23 @@ app.get('/logout', (req, res) => {
   });
 });
 
+// Health check endpoint
+app.get('/health', (req, res) => {
+  const mongoStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
+  res.json({ 
+    status: 'ok',
+    mongoStatus,
+    environment: process.env.NODE_ENV
+  });
+});
+
 // Error handler
 app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).render('error', { message: 'Something went wrong!' });
+  console.error('Application error:', err.stack);
+  res.status(500).render('error', { 
+    message: 'Something went wrong!',
+    details: process.env.NODE_ENV === 'development' ? err.message : null 
+  });
 });
 
 // Start server
