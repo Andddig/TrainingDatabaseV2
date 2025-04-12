@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard - BVAR19 Portal</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>BVAR19 Portal</h1>
+      <nav>
+        <a href="/">Home</a>
+        <% if (user.isAdmin) { %>
+          <a href="/admin">Admin Panel</a>
+        <% } %>
+        <a href="/logout">Logout</a>
+      </nav>
+    </header>
+    
+    <main>
+      <div class="dashboard">
+        <div class="welcome-banner">
+          <h2>Welcome, <%= user.firstName %>!</h2>
+          <p>You are logged in to the BVAR19 Portal.</p>
+        </div>
+        
+        <div class="user-info">
+          <h3>Your Account Information</h3>
+          <ul>
+            <li><strong>Name:</strong> <%= user.displayName %></li>
+            <li><strong>Email:</strong> <%= user.email %></li>
+            <li><strong>Role:</strong> <%= user.isAdmin ? 'Administrator' : 'User' %></li>
+            <li><strong>Joined:</strong> <%= new Date(user.createdAt).toLocaleDateString() %></li>
+          </ul>
+        </div>
+        
+        <div class="portal-content">
+          <h3>Portal Content</h3>
+          <p>This is a demo page. In a real implementation, you would see your personalized content here.</p>
+          
+          <div class="demo-cards">
+            <div class="card">
+              <h4>Recent Activity</h4>
+              <p>No recent activity to display.</p>
+            </div>
+            
+            <div class="card">
+              <h4>Notifications</h4>
+              <p>You have no new notifications.</p>
+            </div>
+            
+            <div class="card">
+              <h4>Quick Links</h4>
+              <ul>
+                <li><a href="#">My Profile</a></li>
+                <li><a href="#">Settings</a></li>
+                <li><a href="#">Help Center</a></li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+    
+    <footer>
+      <p>&copy; <%= new Date().getFullYear() %> BVAR19.org. All rights reserved.</p>
+    </footer>
+  </div>
+</body>
+</html> 

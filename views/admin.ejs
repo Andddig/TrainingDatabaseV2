@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Panel - BVAR19 Portal</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>BVAR19 Portal</h1>
+      <nav>
+        <a href="/">Home</a>
+        <a href="/dashboard">Dashboard</a>
+        <a href="/logout">Logout</a>
+      </nav>
+    </header>
+    
+    <main>
+      <div class="admin-panel">
+        <h2>Admin Panel</h2>
+        
+        <div class="admin-section">
+          <h3>User Management</h3>
+          
+          <table class="user-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Joined</th>
+                <th>Admin Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% users.forEach(function(userItem) { %>
+                <tr data-user-id="<%= userItem._id %>">
+                  <td><%= userItem.displayName %></td>
+                  <td><%= userItem.email %></td>
+                  <td><%= new Date(userItem.createdAt).toLocaleDateString() %></td>
+                  <td class="admin-status"><%= userItem.isAdmin ? 'Admin' : 'User' %></td>
+                  <td>
+                    <button 
+                      class="toggle-admin-btn"
+                      data-user-id="<%= userItem._id %>"
+                      data-is-admin="<%= userItem.isAdmin %>"
+                      <%= userItem.email === 'adavis@bvar19.org' ? 'disabled' : '' %>
+                    >
+                      <%= userItem.isAdmin ? 'Remove Admin' : 'Make Admin' %>
+                    </button>
+                  </td>
+                </tr>
+              <% }); %>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+    
+    <footer>
+      <p>&copy; <%= new Date().getFullYear() %> BVAR19.org. All rights reserved.</p>
+    </footer>
+  </div>
+  
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const toggleBtns = document.querySelectorAll('.toggle-admin-btn');
+      
+      toggleBtns.forEach(btn => {
+        btn.addEventListener('click', function() {
+          const userId = this.getAttribute('data-user-id');
+          const currentStatus = this.getAttribute('data-is-admin') === 'true';
+          const newStatus = !currentStatus;
+          
+          // Update UI immediately for better UX
+          const statusCell = this.closest('tr').querySelector('.admin-status');
+          statusCell.textContent = newStatus ? 'Admin' : 'User';
+          this.textContent = newStatus ? 'Remove Admin' : 'Make Admin';
+          this.setAttribute('data-is-admin', newStatus.toString());
+          
+          // Send API request
+          fetch('/api/set-admin', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              userId: userId,
+              isAdmin: newStatus
+            })
+          })
+          .then(response => response.json())
+          .then(data => {
+            if (!data.success) {
+              // Revert UI changes if API call failed
+              statusCell.textContent = currentStatus ? 'Admin' : 'User';
+              this.textContent = currentStatus ? 'Remove Admin' : 'Make Admin';
+              this.setAttribute('data-is-admin', currentStatus.toString());
+              alert('Failed to update admin status: ' + data.message);
+            }
+          })
+          .catch(error => {
+            console.error('Error:', error);
+            // Revert UI changes if API call failed
+            statusCell.textContent = currentStatus ? 'Admin' : 'User';
+            this.textContent = currentStatus ? 'Remove Admin' : 'Make Admin';
+            this.setAttribute('data-is-admin', currentStatus.toString());
+            alert('Failed to update admin status. Please try again.');
+          });
+        });
+      });
+    });
+  </script>
+</body>
+</html> 

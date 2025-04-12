@@ -1,0 +1,44 @@
+version: '3'
+services:
+  app:
+    build: .
+    container_name: bvar19-portal
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - MONGODB_URI=mongodb://mongodb:27017/bvar19-portal
+      - SESSION_SECRET=${SESSION_SECRET}
+      - MICROSOFT_CLIENT_ID=${MICROSOFT_CLIENT_ID}
+      - MICROSOFT_CLIENT_SECRET=${MICROSOFT_CLIENT_SECRET}
+      - MICROSOFT_TENANT_ID=${MICROSOFT_TENANT_ID}
+      - CALLBACK_URL=${CALLBACK_URL}
+    depends_on:
+      - mongodb
+    networks:
+      - bvar19-network
+    volumes:
+      - ./public:/app/public
+      - ./views:/app/views
+      - ./logs:/app/logs
+
+  mongodb:
+    image: mongo:latest
+    container_name: bvar19-mongodb
+    restart: unless-stopped
+    volumes:
+      - mongodb-data:/data/db
+    ports:
+      - "27017:27017"
+    networks:
+      - bvar19-network
+
+networks:
+  bvar19-network:
+    driver: bridge
+
+volumes:
+  mongodb-data:
+    driver: local 
