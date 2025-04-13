@@ -15,6 +15,11 @@ const userSchema = new mongoose.Schema({
     type: Boolean, 
     default: false 
   },
+  roles: {
+    type: [String],
+    enum: ['Student', 'Approver', 'Training Officer'],
+    default: ['Student']
+  },
   lastLogin: Date,
   createdAt: { 
     type: Date, 
@@ -56,6 +61,7 @@ userSchema.statics.findOrCreateFromMicrosoft = async function(profile) {
         lastName: profile.name.familyName,
         email: profile.emails[0].value,
         isAdmin: isAdmin,
+        roles: ['Student'], // Default role
         lastLogin: new Date()
       });
     } else {

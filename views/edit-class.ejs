@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Edit Training Class - BVAR19 Portal</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>BVAR19 Portal</h1>
+      <nav>
+        <a href="/">Home</a>
+        <a href="/dashboard">Dashboard</a>
+        <% if (user.isAdmin) { %>
+          <a href="/admin">Admin Panel</a>
+        <% } %>
+        <a href="/logout">Logout</a>
+      </nav>
+    </header>
+    
+    <main>
+      <div class="edit-class">
+        <div class="form-header">
+          <h2>Edit Training Class</h2>
+          <a href="/training/classes" class="btn-back">Back to Classes</a>
+        </div>
+        
+        <% if (error) { %>
+          <div class="error-message">
+            <p><%= error %></p>
+          </div>
+        <% } %>
+        
+        <% if (success) { %>
+          <div class="success-message">
+            <p><%= success %></p>
+          </div>
+        <% } %>
+        
+        <div class="class-form">
+          <form action="/training/class/<%= trainingClass._id %>/update" method="POST">
+            <div class="form-group">
+              <label for="name">Class Name:</label>
+              <input type="text" id="name" name="name" value="<%= trainingClass.name %>" required>
+            </div>
+            
+            <div class="form-group">
+              <label for="description">Description:</label>
+              <textarea id="description" name="description" rows="3"><%= trainingClass.description %></textarea>
+            </div>
+            
+            <div class="form-group">
+              <label for="hoursValue">Default Hours Value:</label>
+              <input type="number" id="hoursValue" name="hoursValue" min="0" step="0.5" value="<%= trainingClass.hoursValue %>">
+            </div>
+            
+            <div class="form-actions">
+              <button type="submit" class="btn-save">Update Class</button>
+              <a href="/training/classes" class="btn-cancel">Cancel</a>
+            </div>
+          </form>
+        </div>
+      </div>
+    </main>
+    
+    <footer>
+      <p>&copy; <%= new Date().getFullYear() %> BVAR19.org. All rights reserved.</p>
+    </footer>
+  </div>
+</body>
+</html> 

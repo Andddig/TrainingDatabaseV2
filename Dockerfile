@@ -12,7 +12,7 @@ RUN npm install
 COPY . .
 
 # Create necessary directories
-RUN mkdir -p public/img
+RUN mkdir -p public/uploads
 
 # Expose the port the app runs on
 EXPOSE 3000

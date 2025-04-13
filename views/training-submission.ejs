@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Submit Training - BVAR19 Portal</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>BVAR19 Portal</h1>
+      <nav>
+        <a href="/">Home</a>
+        <a href="/dashboard">Dashboard</a>
+        <% if (user.isAdmin) { %>
+          <a href="/admin">Admin Panel</a>
+        <% } %>
+        <a href="/logout">Logout</a>
+      </nav>
+    </header>
+    
+    <main>
+      <div class="submission-form">
+        <h2>Submit Training Certificate</h2>
+        
+        <% if (error) { %>
+          <div class="error-message">
+            <p><%= error %></p>
+          </div>
+        <% } %>
+        
+        <% if (success) { %>
+          <div class="success-message">
+            <p><%= success %></p>
+          </div>
+        <% } %>
+        
+        <form action="/training/submit" method="POST" enctype="multipart/form-data">
+          <div class="form-group">
+            <label for="trainingClass">Training Class:</label>
+            <select id="trainingClass" name="trainingClass" required>
+              <option value="">-- Select Training Class --</option>
+              <% trainingClasses.forEach(trainingClass => { %>
+                <option value="<%= trainingClass._id %>"><%= trainingClass.name %></option>
+              <% }); %>
+            </select>
+          </div>
+          
+          <div class="form-group">
+            <label for="startDate">Start Date:</label>
+            <input type="date" id="startDate" name="startDate" required>
+          </div>
+          
+          <div class="form-group">
+            <label for="endDate">End Date:</label>
+            <input type="date" id="endDate" name="endDate" required>
+          </div>
+          
+          <div class="form-group">
+            <label for="hoursLogged">Hours Completed:</label>
+            <input type="number" id="hoursLogged" name="hoursLogged" min="0" step="0.5" required>
+          </div>
+          
+          <div class="form-group">
+            <label for="certificateFile">Upload Certificate (PDF or Image):</label>
+            <input type="file" id="certificateFile" name="certificateFile" accept=".pdf,.jpg,.jpeg,.png" required>
+          </div>
+          
+          <button type="submit" class="btn-submit">Submit for Approval</button>
+        </form>
+      </div>
+    </main>
+    
+    <footer>
+      <p>&copy; <%= new Date().getFullYear() %> BVAR19.org. All rights reserved.</p>
+    </footer>
+  </div>
+  
+  <script>
+    // Simple client-side validation
+    document.querySelector('form').addEventListener('submit', function(e) {
+      const startDate = new Date(document.getElementById('startDate').value);
+      const endDate = new Date(document.getElementById('endDate').value);
+      
+      if (endDate < startDate) {
+        e.preventDefault();
+        alert('End date cannot be earlier than start date.');
+      }
+    });
+  </script>
+</body>
+</html> 

@@ -1,4 +1,5 @@
 require('dotenv').config();
+console.log('Starting server initialization...');
 const express = require('express');
 const session = require('express-session');
 const passport = require('passport');
@@ -27,9 +28,11 @@ const connectWithRetry = () => {
     });
 };
 
+console.log('Attempting to connect to MongoDB...');
 connectWithRetry();
 
 // Load User model
+console.log('Initializing User model...');
 const User = mongoose.model('User', new mongoose.Schema({
   microsoftId: String,
   displayName: String,
@@ -37,8 +40,12 @@ const User = mongoose.model('User', new mongoose.Schema({
   lastName: String,
   email: String,
   isAdmin: { type: Boolean, default: false },
-  createdAt: { type: Date, default: Date.now }
+  createdAt: { type: Date, default: Date.now },
+  roles: { type: [String], default: ['Student'] }
 }));
+
+// Load route modules
+const trainingRoutes = require('./routes/training');
 
 // Middleware
 app.use(helmet({
@@ -110,7 +117,8 @@ passport.use(new MicrosoftStrategy({
         firstName: profile.name.givenName,
         lastName: profile.name.familyName,
         email: profile.emails[0].value,
-        isAdmin: isAdmin
+        isAdmin: isAdmin,
+        roles: ['Student'] // Default role
       });
     }
     
@@ -152,6 +160,21 @@ const isAdmin = (req, res, next) => {
   });
 };
 
+// Role-based access control middleware
+const hasRole = (requiredRoles) => {
+  return (req, res, next) => {
+    if (req.isAuthenticated() && (
+      req.user.isAdmin || 
+      requiredRoles.some(role => req.user.roles.includes(role))
+    )) {
+      return next();
+    }
+    res.status(403).render('error', { 
+      message: 'Access denied. You do not have the required role.'
+    });
+  };
+};
+
 // Routes
 app.get('/', (req, res) => {
   res.render('index', { user: req.user });
@@ -190,6 +213,9 @@ app.get('/admin', isAuthenticated, isAdmin, (req, res) => {
     });
 });
 
+// Use route modules
+app.use('/training', trainingRoutes);
+
 // API endpoint to set admin status
 app.post('/api/set-admin', isAuthenticated, isAdmin, async (req, res) => {
   try {
@@ -199,50 +225,92 @@ app.post('/api/set-admin', isAuthenticated, isAdmin, async (req, res) => {
       return res.status(400).json({ success: false, message: 'User ID is required' });
     }
     
-    const user = await User.findByIdAndUpdate(
-      userId, 
-      { isAdmin: !!isAdmin },
-      { new: true }
-    );
-    
+    const user = await User.findById(userId);
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
     
-    return res.json({ success: true, user });
+    user.isAdmin = isAdmin === true || isAdmin === 'true';
+    await user.save();
+    
+    return res.json({ 
+      success: true, 
+      message: `Admin status for ${user.displayName} updated successfully`
+    });
   } catch (error) {
-    console.error('Error setting admin status:', error);
-    return res.status(500).json({ success: false, message: 'Server error' });
+    console.error('Error updating admin status:', error);
+    return res.status(500).json({ 
+      success: false, 
+      message: 'Error updating admin status'
+    });
   }
 });
 
+// API endpoint to update user role
+app.post('/api/set-role', isAuthenticated, isAdmin, async (req, res) => {
+  try {
+    const { userId, roles } = req.body;
+    
+    if (!userId) {
+      return res.status(400).json({ success: false, message: 'User ID is required' });
+    }
+    
+    if (!Array.isArray(roles)) {
+      return res.status(400).json({ success: false, message: 'Roles must be an array' });
+    }
+    
+    // Validate all roles are valid
+    const validRoles = ['Student', 'Approver', 'Training Officer'];
+    const allRolesValid = roles.every(role => validRoles.includes(role));
+    
+    if (!allRolesValid) {
+      return res.status(400).json({ success: false, message: 'One or more roles are invalid' });
+    }
+    
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+    
+    user.roles = roles;
+    await user.save();
+    
+    return res.json({ 
+      success: true, 
+      message: `Roles for ${user.displayName} updated successfully`
+    });
+  } catch (error) {
+    console.error('Error updating user roles:', error);
+    return res.status(500).json({ 
+      success: false, 
+      message: 'Error updating user roles'
+    });
+  }
+});
+
+// Logout route
 app.get('/logout', (req, res) => {
   req.logout(function(err) {
-    if (err) { return next(err); }
+    if (err) { 
+      console.error('Logout error:', err);
+      return res.status(500).render('error', { message: 'Error during logout' });
+    }
     res.redirect('/');
   });
 });
 
-// Health check endpoint
-app.get('/health', (req, res) => {
-  const mongoStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
-  res.json({ 
-    status: 'ok',
-    mongoStatus,
-    environment: process.env.NODE_ENV
-  });
+// 404 handler
+app.use((req, res, next) => {
+  res.status(404).render('error', { message: 'Page not found' });
 });
 
 // Error handler
 app.use((err, req, res, next) => {
-  console.error('Application error:', err.stack);
-  res.status(500).render('error', { 
-    message: 'Something went wrong!',
-    details: process.env.NODE_ENV === 'development' ? err.message : null 
-  });
+  console.error('Server error:', err);
+  res.status(500).render('error', { message: 'Server error' });
 });
 
-// Start server
+// Start the server
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 }); 

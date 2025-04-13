@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Training Submissions - BVAR19 Portal</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>BVAR19 Portal</h1>
+      <nav>
+        <a href="/">Home</a>
+        <a href="/dashboard">Dashboard</a>
+        <% if (user.isAdmin) { %>
+          <a href="/admin">Admin Panel</a>
+        <% } %>
+        <a href="/logout">Logout</a>
+      </nav>
+    </header>
+    
+    <main>
+      <div class="my-submissions">
+        <div class="submissions-header">
+          <h2>My Training Submissions</h2>
+          <a href="/training/submit" class="btn-add">Submit New Training</a>
+        </div>
+        
+        <% if (error) { %>
+          <div class="error-message">
+            <p><%= error %></p>
+          </div>
+        <% } %>
+        
+        <% if (success) { %>
+          <div class="success-message">
+            <p><%= success %></p>
+          </div>
+        <% } %>
+        
+        <div class="submissions-list">
+          <% if (submissions.length === 0) { %>
+            <div class="no-submissions">
+              <p>You haven't submitted any training certificates yet.</p>
+              <p>Use the "Submit New Training" button to record your training hours.</p>
+            </div>
+          <% } else { %>
+            <div class="submissions-table">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Training Class</th>
+                    <th>Date Range</th>
+                    <th>Hours</th>
+                    <th>Status</th>
+                    <th>Submitted</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% submissions.forEach(submission => { %>
+                    <tr class="submission-row <%= submission.status %>">
+                      <td><%= submission.trainingClass ? submission.trainingClass.name : 'Unknown Class' %></td>
+                      <td>
+                        <%= new Date(submission.startDate).toLocaleDateString() %> to 
+                        <%= new Date(submission.endDate).toLocaleDateString() %>
+                      </td>
+                      <td><%= submission.hoursLogged %></td>
+                      <td><span class="status-badge <%= submission.status %>"><%= submission.status %></span></td>
+                      <td><%= new Date(submission.createdAt).toLocaleDateString() %></td>
+                      <td>
+                        <a href="/training/submission/<%= submission._id %>" class="btn-view">View Details</a>
+                      </td>
+                    </tr>
+                  <% }); %>
+                </tbody>
+              </table>
+            </div>
+            
+            <div class="summary-section">
+              <h3>Training Summary</h3>
+              <div class="summary-stats">
+                <div class="stat-card">
+                  <span class="stat-value"><%= submissions.filter(s => s.status === 'approved').length %></span>
+                  <span class="stat-label">Approved</span>
+                </div>
+                <div class="stat-card">
+                  <span class="stat-value"><%= submissions.filter(s => s.status === 'pending').length %></span>
+                  <span class="stat-label">Pending</span>
+                </div>
+                <div class="stat-card">
+                  <span class="stat-value"><%= submissions.filter(s => s.status === 'rejected').length %></span>
+                  <span class="stat-label">Rejected</span>
+                </div>
+                <div class="stat-card total-hours">
+                  <span class="stat-value">
+                    <%= submissions
+                      .filter(s => s.status === 'approved')
+                      .reduce((total, s) => total + s.hoursLogged, 0)
+                    %>
+                  </span>
+                  <span class="stat-label">Total Approved Hours</span>
+                </div>
+              </div>
+            </div>
+          <% } %>
+        </div>
+      </div>
+    </main>
+    
+    <footer>
+      <p>&copy; <%= new Date().getFullYear() %> BVAR19.org. All rights reserved.</p>
+    </footer>
+  </div>
+</body>
+</html> 

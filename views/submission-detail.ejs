@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Review Submission - BVAR19 Portal</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>BVAR19 Portal</h1>
+      <nav>
+        <a href="/">Home</a>
+        <a href="/dashboard">Dashboard</a>
+        <% if (user.isAdmin) { %>
+          <a href="/admin">Admin Panel</a>
+        <% } %>
+        <a href="/logout">Logout</a>
+      </nav>
+    </header>
+    
+    <main>
+      <div class="submission-detail">
+        <div class="submission-header">
+          <h2>Training Submission Review</h2>
+          <a href="/training/approver/dashboard" class="btn-back">Back to List</a>
+        </div>
+        
+        <% if (error) { %>
+          <div class="error-message">
+            <p><%= error %></p>
+          </div>
+        <% } %>
+        
+        <% if (success) { %>
+          <div class="success-message">
+            <p><%= success %></p>
+          </div>
+        <% } %>
+        
+        <div class="submission-info">
+          <div class="info-section">
+            <h3>Submission Details</h3>
+            <div class="info-grid">
+              <div class="info-row">
+                <span class="info-label">Status:</span>
+                <span class="info-value status-badge <%= submission.status %>"><%= submission.status %></span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Student:</span>
+                <span class="info-value"><%= submission.student.displayName %></span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Email:</span>
+                <span class="info-value"><%= submission.student.email %></span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Training Class:</span>
+                <span class="info-value"><%= submission.trainingClass.name %></span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Start Date:</span>
+                <span class="info-value"><%= new Date(submission.startDate).toLocaleDateString() %></span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">End Date:</span>
+                <span class="info-value"><%= new Date(submission.endDate).toLocaleDateString() %></span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Hours Logged:</span>
+                <span class="info-value"><%= submission.hoursLogged %></span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Submitted On:</span>
+                <span class="info-value"><%= new Date(submission.createdAt).toLocaleString() %></span>
+              </div>
+              <% if (submission.status !== 'pending') { %>
+                <div class="info-row">
+                  <span class="info-label">Reviewed By:</span>
+                  <span class="info-value"><%= submission.approvedBy ? submission.approvedBy.displayName : 'N/A' %></span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">Reviewed On:</span>
+                  <span class="info-value"><%= submission.approvedAt ? new Date(submission.approvedAt).toLocaleString() : 'N/A' %></span>
+                </div>
+              <% } %>
+            </div>
+          </div>
+          
+          <div class="certificate-section">
+            <h3>Certificate</h3>
+            <div class="certificate-preview">
+              <% if (submission.certificateFile.mimeType.includes('image')) { %>
+                <img src="/uploads/<%= submission.certificateFile.filename %>" alt="Training Certificate">
+              <% } else { %>
+                <div class="pdf-preview">
+                  <p>PDF Document: <%= submission.certificateFile.originalName %></p>
+                  <a href="/uploads/<%= submission.certificateFile.filename %>" target="_blank" class="btn-download">View PDF</a>
+                </div>
+              <% } %>
+            </div>
+          </div>
+          
+          <% if (submission.status === 'pending') { %>
+            <div class="approval-section">
+              <h3>Review Action</h3>
+              <div class="approval-actions">
+                <form action="/training/submission/<%= submission._id %>/approve" method="POST">
+                  <textarea name="comment" placeholder="Add approval comment (optional)"></textarea>
+                  <button type="submit" class="btn-approve">Approve Submission</button>
+                </form>
+                
+                <form action="/training/submission/<%= submission._id %>/reject" method="POST">
+                  <textarea name="comment" placeholder="Add rejection reason (required)" required></textarea>
+                  <button type="submit" class="btn-reject">Reject Submission</button>
+                </form>
+              </div>
+            </div>
+          <% } %>
+          
+          <div class="comments-section">
+            <h3>Comments (<%= submission.comments.length %>)</h3>
+            
+            <% if (submission.comments.length === 0) { %>
+              <p class="no-comments">No comments have been added yet.</p>
+            <% } else { %>
+              <div class="comments-list">
+                <% submission.comments.forEach(comment => { %>
+                  <div class="comment">
+                    <div class="comment-header">
+                      <span class="comment-author"><%= comment.author.displayName %></span>
+                      <span class="comment-date"><%= new Date(comment.createdAt).toLocaleString() %></span>
+                    </div>
+                    <div class="comment-body">
+                      <p><%= comment.text %></p>
+                    </div>
+                  </div>
+                <% }); %>
+              </div>
+            <% } %>
+            
+            <div class="add-comment">
+              <h4>Add Comment</h4>
+              <form action="/training/submission/<%= submission._id %>/comment" method="POST">
+                <textarea name="comment" placeholder="Add your comment here..." required></textarea>
+                <button type="submit" class="btn-comment">Post Comment</button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+    
+    <footer>
+      <p>&copy; <%= new Date().getFullYear() %> BVAR19.org. All rights reserved.</p>
+    </footer>
+  </div>
+</body>
+</html> 

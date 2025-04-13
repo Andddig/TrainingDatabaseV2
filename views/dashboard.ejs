@@ -31,25 +31,50 @@
           <ul>
             <li><strong>Name:</strong> <%= user.displayName %></li>
             <li><strong>Email:</strong> <%= user.email %></li>
-            <li><strong>Role:</strong> <%= user.isAdmin ? 'Administrator' : 'User' %></li>
+            <li><strong>Role<%= user.roles && user.roles.length > 1 ? 's' : '' %>:</strong> 
+              <% if (user.isAdmin) { %>
+                Administrator
+                <% if (user.roles && user.roles.length > 0) { %> + <% } %>
+              <% } %>
+              <% if (user.roles && user.roles.length > 0) { %>
+                <%= user.roles.join(', ') %>
+              <% } %>
+            </li>
             <li><strong>Joined:</strong> <%= new Date(user.createdAt).toLocaleDateString() %></li>
           </ul>
         </div>
         
         <div class="portal-content">
-          <h3>Portal Content</h3>
-          <p>This is a demo page. In a real implementation, you would see your personalized content here.</p>
+          <h3>Training Management</h3>
           
-          <div class="demo-cards">
-            <div class="card">
-              <h4>Recent Activity</h4>
-              <p>No recent activity to display.</p>
-            </div>
+          <div class="dashboard-cards">
+            <% if (user.roles && user.roles.includes('Student')) { %>
+              <div class="card">
+                <h4>Student Actions</h4>
+                <ul>
+                  <li><a href="/training/submit">Submit Training Certificate</a></li>
+                  <li><a href="/training/my-submissions">View My Submissions</a></li>
+                </ul>
+              </div>
+            <% } %>
             
-            <div class="card">
-              <h4>Notifications</h4>
-              <p>You have no new notifications.</p>
-            </div>
+            <% if (user.isAdmin || (user.roles && user.roles.includes('Approver')) || (user.roles && user.roles.includes('Training Officer'))) { %>
+              <div class="card">
+                <h4>Approver Actions</h4>
+                <ul>
+                  <li><a href="/training/approver/dashboard">Review Submissions</a></li>
+                </ul>
+              </div>
+            <% } %>
+            
+            <% if (user.isAdmin || (user.roles && user.roles.includes('Training Officer'))) { %>
+              <div class="card">
+                <h4>Training Officer Actions</h4>
+                <ul>
+                  <li><a href="/training/manage-classes">Manage Training Classes</a></li>
+                </ul>
+              </div>
+            <% } %>
             
             <div class="card">
               <h4>Quick Links</h4>

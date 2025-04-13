@@ -31,6 +31,7 @@
                 <th>Email</th>
                 <th>Joined</th>
                 <th>Admin Status</th>
+                <th>Roles</th>
                 <th>Actions</th>
               </tr>
             </thead>
@@ -41,6 +42,28 @@
                   <td><%= userItem.email %></td>
                   <td><%= new Date(userItem.createdAt).toLocaleDateString() %></td>
                   <td class="admin-status"><%= userItem.isAdmin ? 'Admin' : 'User' %></td>
+                  <td class="user-role">
+                    <div class="role-checkboxes" data-user-id="<%= userItem._id %>" <%= userItem.email === 'adavis@bvar19.org' ? 'data-disabled="true"' : '' %>>
+                      <label class="role-checkbox">
+                        <input type="checkbox" value="Student" 
+                          <%= userItem.roles && userItem.roles.includes('Student') ? 'checked' : '' %>
+                          <%= userItem.email === 'adavis@bvar19.org' ? 'disabled' : '' %>>
+                        Student
+                      </label>
+                      <label class="role-checkbox">
+                        <input type="checkbox" value="Approver" 
+                          <%= userItem.roles && userItem.roles.includes('Approver') ? 'checked' : '' %>
+                          <%= userItem.email === 'adavis@bvar19.org' ? 'disabled' : '' %>>
+                        Approver
+                      </label>
+                      <label class="role-checkbox">
+                        <input type="checkbox" value="Training Officer" 
+                          <%= userItem.roles && userItem.roles.includes('Training Officer') ? 'checked' : '' %>
+                          <%= userItem.email === 'adavis@bvar19.org' ? 'disabled' : '' %>>
+                        Training Officer
+                      </label>
+                    </div>
+                  </td>
                   <td>
                     <button 
                       class="toggle-admin-btn"
@@ -67,6 +90,7 @@
   <script>
     document.addEventListener('DOMContentLoaded', function() {
       const toggleBtns = document.querySelectorAll('.toggle-admin-btn');
+      const roleCheckboxes = document.querySelectorAll('.role-checkboxes');
       
       toggleBtns.forEach(btn => {
         btn.addEventListener('click', function() {
@@ -110,6 +134,56 @@
             alert('Failed to update admin status. Please try again.');
           });
         });
+      });
+      
+      // Role checkboxes change handler
+      roleCheckboxes.forEach(container => {
+        const checkboxes = container.querySelectorAll('input[type="checkbox"]');
+        const userId = container.getAttribute('data-user-id');
+        const isDisabled = container.getAttribute('data-disabled') === 'true';
+        
+        if (!isDisabled) {
+          checkboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', function() {
+              // Get all checked roles for this user
+              const selectedRoles = Array.from(container.querySelectorAll('input[type="checkbox"]:checked'))
+                .map(input => input.value);
+              
+              // Ensure user has at least one role
+              if (selectedRoles.length === 0) {
+                this.checked = true;
+                alert('User must have at least one role');
+                return;
+              }
+              
+              // Send API request
+              fetch('/api/set-role', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  userId: userId,
+                  roles: selectedRoles
+                })
+              })
+              .then(response => response.json())
+              .then(data => {
+                if (!data.success) {
+                  alert('Failed to update roles: ' + data.message);
+                  // If failed, refresh the page to reset the checkboxes
+                  window.location.reload();
+                }
+              })
+              .catch(error => {
+                console.error('Error:', error);
+                alert('Failed to update roles. Please try again.');
+                // If failed, refresh the page to reset the checkboxes
+                window.location.reload();
+              });
+            });
+          });
+        }
       });
     });
   </script>
