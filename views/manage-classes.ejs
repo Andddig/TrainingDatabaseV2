@@ -13,8 +13,13 @@
   <div class="container mt-4">
     <div class="row mb-4">
       <div class="col">
-        <h1>Manage Training Classes</h1>
-        <p>Create and manage training classes for your organization.</p>
+        <h1><i class="fas fa-graduation-cap text-primary mr-2"></i>Manage Training Classes</h1>
+        <p class="lead">Create and manage training classes for your organization.</p>
+      </div>
+      <div class="col-auto d-flex align-items-center">
+        <button type="button" class="btn btn-primary" id="addClassBtn">
+          <i class="fas fa-plus-circle mr-1"></i> Add Class
+        </button>
       </div>
     </div>
     
@@ -27,71 +32,77 @@
     <% } %>
     
     <div class="card mb-4">
-      <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+      <div class="card-header bg-primary text-white">
         <h5 class="mb-0">Training Classes</h5>
-        <button id="addClassBtn" class="btn btn-light btn-sm"><i class="fas fa-plus mr-1"></i> Add New Class</button>
       </div>
       <div class="card-body">
         <!-- Add Class Form (Hidden initially) -->
         <div id="addClassForm" class="mb-4" style="display: none;">
-          <h5 class="border-bottom pb-2 mb-3">Add New Training Class</h5>
-          <form action="/training/class/add" method="POST">
-            <div class="form-group">
-              <label for="name">Class Name:</label>
-              <input type="text" class="form-control" id="name" name="name" required>
+          <div class="card">
+            <div class="card-header bg-light">
+              <h5 class="mb-0">Add New Training Class</h5>
             </div>
-            
-            <div class="form-group">
-              <label for="description">Description:</label>
-              <textarea class="form-control" id="description" name="description" rows="3"></textarea>
+            <div class="card-body">
+              <form action="/training/class/add" method="POST">
+                <div class="form-group">
+                  <label for="name">Class Name <span class="text-danger">*</span></label>
+                  <input type="text" class="form-control" id="name" name="name" required>
+                </div>
+                
+                <div class="form-group">
+                  <label for="description">Description</label>
+                  <textarea class="form-control" id="description" name="description" rows="3"></textarea>
+                </div>
+                
+                <div class="form-group">
+                  <label for="hoursValue">Default Hours Value</label>
+                  <input type="number" class="form-control" id="hoursValue" name="hoursValue" min="0" step="0.5" value="0">
+                </div>
+                
+                <div class="form-group">
+                  <label>Prerequisites (Classes that must be completed first)</label>
+                  <div class="prerequisites-container">
+                    <% if (trainingClasses && trainingClasses.length > 0) { %>
+                      <select name="prerequisites" multiple class="form-control" id="prerequisites">
+                        <% trainingClasses.forEach(classItem => { %>
+                          <option value="<%= classItem._id %>"><%= classItem.name %></option>
+                        <% }); %>
+                      </select>
+                      <small class="form-text text-muted">Hold Ctrl/Cmd to select multiple prerequisites. Order matters - list them in the order they should be completed.</small>
+                    <% } else { %>
+                      <p class="text-muted">No other classes available to set as prerequisites.</p>
+                    <% } %>
+                  </div>
+                </div>
+                
+                <div class="form-group text-right">
+                  <button type="button" id="cancelAddBtn" class="btn btn-secondary mr-2">
+                    <i class="fas fa-times mr-1"></i> Cancel
+                  </button>
+                  <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save mr-1"></i> Save Class
+                  </button>
+                </div>
+              </form>
             </div>
-            
-            <div class="form-group">
-              <label for="hoursValue">Default Hours Value:</label>
-              <input type="number" class="form-control" id="hoursValue" name="hoursValue" min="0" step="0.5" value="0">
-            </div>
-            
-            <div class="form-group">
-              <label>Prerequisites (Classes that must be completed first):</label>
-              <div class="prerequisites-container">
-                <% if (trainingClasses && trainingClasses.length > 0) { %>
-                  <select name="prerequisites" multiple class="form-control" id="prerequisites">
-                    <% trainingClasses.forEach(classItem => { %>
-                      <option value="<%= classItem._id %>"><%= classItem.name %></option>
-                    <% }); %>
-                  </select>
-                  <small class="form-text text-muted">Hold Ctrl/Cmd to select multiple prerequisites. Order matters - list them in the order they should be completed.</small>
-                <% } else { %>
-                  <p class="text-muted">No other classes available to set as prerequisites.</p>
-                <% } %>
-              </div>
-            </div>
-            
-            <div class="form-group text-right">
-              <button type="button" id="cancelAddBtn" class="btn btn-secondary mr-2">Cancel</button>
-              <button type="submit" class="btn btn-primary">Save Class</button>
-            </div>
-          </form>
-          <hr>
+          </div>
         </div>
         
         <!-- Class List -->
         <% if (trainingClasses.length === 0) { %>
           <div class="alert alert-info">
-            <p class="mb-0">No training classes have been created yet.</p>
+            <i class="fas fa-info-circle mr-2"></i> No training classes have been created yet. Click "Add Class" to create one.
           </div>
         <% } else { %>
           <div class="table-responsive">
-            <table class="table table-striped">
+            <table class="table table-hover">
               <thead>
                 <tr>
-                  <th>Name</th>
+                  <th>Class Name</th>
                   <th>Description</th>
-                  <th>Default Hours</th>
+                  <th>Hours Value</th>
                   <th>Prerequisites</th>
                   <th>Status</th>
-                  <th>Created By</th>
-                  <th>Created</th>
                   <th>Actions</th>
                 </tr>
               </thead>
@@ -103,9 +114,9 @@
                     <td><%= trainingClass.hoursValue %></td>
                     <td>
                       <% if (trainingClass.prerequisites && trainingClass.prerequisites.length > 0) { %>
-                        <ul class="mb-0 pl-3">
+                        <ul class="list-unstyled mb-0">
                           <% trainingClass.prerequisites.forEach(prereq => { %>
-                            <li><%= prereq.name || prereq %></li>
+                            <li><%= prereq.name %></li>
                           <% }); %>
                         </ul>
                       <% } else { %>
@@ -113,12 +124,10 @@
                       <% } %>
                     </td>
                     <td>
-                      <span class="badge badge-<%= trainingClass.isActive ? 'success' : 'secondary' %>">
+                      <span class="badge badge-<%= trainingClass.isActive ? 'success' : 'danger' %>">
                         <%= trainingClass.isActive ? 'Active' : 'Inactive' %>
                       </span>
                     </td>
-                    <td><%= trainingClass.createdBy ? trainingClass.createdBy.displayName : 'System' %></td>
-                    <td><%= new Date(trainingClass.createdAt).toLocaleDateString() %></td>
                     <td>
                       <div class="btn-group btn-group-sm">
                         <a href="/training/class/<%= trainingClass._id %>/edit" class="btn btn-primary">

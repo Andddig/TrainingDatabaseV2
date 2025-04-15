@@ -3,90 +3,87 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Edit Training Class - BVAR19 Portal</title>
+  <title>Edit Training Class - Training Database</title>
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
   <link rel="stylesheet" href="/css/styles.css">
 </head>
 <body>
-  <div class="container">
-    <header>
-      <h1>BVAR19 Portal</h1>
-      <nav>
-        <a href="/">Home</a>
-        <a href="/dashboard">Dashboard</a>
-        <% if (user.isAdmin) { %>
-          <a href="/admin">Admin Panel</a>
-        <% } %>
-        <a href="/logout">Logout</a>
-      </nav>
-    </header>
-    
-    <main>
-      <div class="edit-class">
-        <div class="form-header">
-          <h2>Edit Training Class</h2>
-          <a href="/training/classes" class="btn-back">Back to Classes</a>
-        </div>
-        
-        <% if (error) { %>
-          <div class="error-message">
-            <p><%= error %></p>
-          </div>
-        <% } %>
-        
-        <% if (success) { %>
-          <div class="success-message">
-            <p><%= success %></p>
-          </div>
-        <% } %>
-        
-        <div class="class-form">
-          <form action="/training/class/<%= trainingClass._id %>/update" method="POST">
-            <div class="form-group">
-              <label for="name">Class Name:</label>
-              <input type="text" id="name" name="name" value="<%= trainingClass.name %>" required>
-            </div>
-            
-            <div class="form-group">
-              <label for="description">Description:</label>
-              <textarea id="description" name="description" rows="3"><%= trainingClass.description %></textarea>
-            </div>
-            
-            <div class="form-group">
-              <label for="hoursValue">Default Hours Value:</label>
-              <input type="number" id="hoursValue" name="hoursValue" min="0" step="0.5" value="<%= trainingClass.hoursValue %>">
-            </div>
-            
-            <div class="form-group">
-              <label>Prerequisites (Classes that must be completed first):</label>
-              <div class="prerequisites-container">
-                <% if (otherClasses && otherClasses.length > 0) { %>
-                  <select name="prerequisites" multiple class="form-control" id="prerequisites">
-                    <% otherClasses.forEach(classItem => { %>
-                      <option value="<%= classItem._id %>" 
-                        <% if (trainingClass.prerequisites && trainingClass.prerequisites.some(p => p._id.toString() === classItem._id.toString())) { %>selected<% } %>>
-                        <%= classItem.name %>
-                      </option>
-                    <% }); %>
-                  </select>
-                  <small class="text-muted">Hold Ctrl/Cmd to select multiple prerequisites. Order matters - list them in the order they should be completed.</small>
-                <% } else { %>
-                  <p class="text-muted">No other classes available to set as prerequisites.</p>
-                <% } %>
-              </div>
-            </div>
-            
-            <div class="form-actions">
-              <button type="submit" class="btn-save">Update Class</button>
-              <a href="/training/classes" class="btn-cancel">Cancel</a>
-            </div>
-          </form>
-        </div>
+  <%- include('./partials/header', { user }) %>
+  
+  <div class="container mt-4">
+    <div class="row mb-4">
+      <div class="col">
+        <h1><i class="fas fa-graduation-cap text-primary mr-2"></i>Edit Training Class</h1>
       </div>
-    </main>
+      <div class="col-auto">
+        <a href="/training/manage-classes" class="btn btn-secondary">
+          <i class="fas fa-arrow-left"></i> Back to Classes
+        </a>
+      </div>
+    </div>
     
-    <footer>
-      <p>&copy; <%= new Date().getFullYear() %> BVAR19.org. All rights reserved.</p>
-    </footer>
+    <% if (error) { %>
+      <div class="alert alert-danger"><%= error %></div>
+    <% } %>
+    
+    <% if (success) { %>
+      <div class="alert alert-success"><%= success %></div>
+    <% } %>
+    
+    <div class="card">
+      <div class="card-header bg-primary text-white">
+        <h5 class="mb-0">Class Details</h5>
+      </div>
+      <div class="card-body">
+        <form action="/training/class/<%= trainingClass._id %>/update" method="POST">
+          <div class="form-group">
+            <label for="name">Class Name <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="name" name="name" value="<%= trainingClass.name %>" required>
+          </div>
+          
+          <div class="form-group">
+            <label for="description">Description</label>
+            <textarea class="form-control" id="description" name="description" rows="3"><%= trainingClass.description %></textarea>
+          </div>
+          
+          <div class="form-group">
+            <label for="hoursValue">Default Hours Value</label>
+            <input type="number" class="form-control" id="hoursValue" name="hoursValue" min="0" step="0.5" value="<%= trainingClass.hoursValue %>">
+          </div>
+          
+          <div class="form-group">
+            <label>Prerequisites (Classes that must be completed first)</label>
+            <div class="prerequisites-container">
+              <% if (otherClasses && otherClasses.length > 0) { %>
+                <select name="prerequisites" multiple class="form-control" id="prerequisites">
+                  <% otherClasses.forEach(classItem => { %>
+                    <option value="<%= classItem._id %>" 
+                      <% if (trainingClass.prerequisites && trainingClass.prerequisites.some(p => p._id.toString() === classItem._id.toString())) { %>selected<% } %>>
+                      <%= classItem.name %>
+                    </option>
+                  <% }); %>
+                </select>
+                <small class="form-text text-muted">Hold Ctrl/Cmd to select multiple prerequisites. Order matters - list them in the order they should be completed.</small>
+              <% } else { %>
+                <p class="text-muted">No other classes available to set as prerequisites.</p>
+              <% } %>
+            </div>
+          </div>
+          
+          <div class="form-group text-right">
+            <a href="/training/manage-classes" class="btn btn-secondary mr-2">
+              <i class="fas fa-times mr-1"></i> Cancel
+            </a>
+            <button type="submit" class="btn btn-primary">
+              <i class="fas fa-save mr-1"></i> Update Class
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   </div>
+  
+  <%- include('./partials/footer') %>
+  <%- include('./partials/scripts') %>
 </body>
 </html> 
