@@ -37,7 +37,10 @@
             <select class="form-control" id="trainingClass" name="trainingClass" required>
               <option value="">-- Select Training Class --</option>
               <% trainingClasses.forEach(trainingClass => { %>
-                <option value="<%= trainingClass._id %>"><%= trainingClass.name %></option>
+                <option value="<%= trainingClass._id %>" 
+                  <% if (selectedClassId && selectedClassId === trainingClass._id.toString()) { %>selected<% } %>>
+                  <%= trainingClass.name %>
+                </option>
               <% }); %>
             </select>
           </div>

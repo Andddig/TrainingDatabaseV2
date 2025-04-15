@@ -9,6 +9,7 @@ const fs = require('fs');
 const TrainingClass = require('../models/TrainingClass');
 const TrainingSubmission = require('../models/TrainingSubmission');
 const User = mongoose.model('User');
+const qualificationsModule = require('./qualifications');
 
 // Authentication middleware
 const isAuthenticated = (req, res, next) => {
@@ -86,9 +87,12 @@ const upload = multer({
 router.get('/submit', isAuthenticated, async (req, res) => {
   try {
     const trainingClasses = await TrainingClass.find({ isActive: true }).sort('name');
+    const selectedClassId = req.query.class;
+    
     res.render('training-submission', { 
       user: req.user, 
       trainingClasses,
+      selectedClassId,
       error: req.query.error,
       success: req.query.success
     });
@@ -273,11 +277,20 @@ router.post('/submission/:id/approve', isAuthenticated, isApprover, async (req, 
     }
     
     await submission.save();
+    
+    // Update qualifications immediately
+    try {
+      await qualificationsModule.updateUserQualificationsForApprovedSubmission(submission);
+      console.log(`Qualifications updated for submission ${submission._id}`);
+    } catch (err) {
+      console.error('Error updating qualifications:', err);
+    }
+    
     res.redirect(`/training/submission/${submission._id}?success=Submission has been approved`);
     
   } catch (err) {
     console.error('Error approving submission:', err);
-    res.status(500).render('error', { message: 'Error processing submission approval' });
+    res.redirect(`/training/submission/${req.params.id}?error=` + encodeURIComponent(err.message || 'Error approving submission'));
   }
 });
 
