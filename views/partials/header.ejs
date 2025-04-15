@@ -27,6 +27,7 @@
             <div class="dropdown-menu" aria-labelledby="trainingDropdown">
               <a class="dropdown-item" href="/training/submit"><i class="fas fa-upload mr-2"></i> Submit Training</a>
               <a class="dropdown-item" href="/training/my-submissions"><i class="fas fa-list-alt mr-2"></i> My Submissions</a>
+              <a class="dropdown-item" href="/mfri/find-class"><i class="fas fa-search mr-2"></i> Find a Class</a>
               <% if (user.roles.includes('Approver') || user.roles.includes('Training Officer') || user.isAdmin) { %>
                 <div class="dropdown-divider"></div>
                 <a class="dropdown-item" href="/training/approver/dashboard"><i class="fas fa-check mr-2"></i> Approve Submissions</a>

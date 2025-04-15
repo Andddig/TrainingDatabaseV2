@@ -47,6 +47,7 @@ const User = mongoose.model('User', new mongoose.Schema({
 // Load route modules
 const trainingRoutes = require('./routes/training');
 const qualificationsModule = require('./routes/qualifications');
+const mfriRoutes = require('./routes/mfri');
 
 // Middleware
 app.use(helmet({
@@ -282,6 +283,9 @@ app.use('/training', trainingRoutes);
 
 // Register qualification routes
 app.use('/qualifications', qualificationsModule.router);
+
+// Register MFRI routes
+app.use('/mfri', mfriRoutes);
 
 // Hook for updating qualifications when a training submission is approved
 // This approach is safer than trying to patch the existing route handler directly
