@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Qualifications</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+    <%- include('./partials/header', { user }) %>
+    
+    <div class="container mt-4">
+        <div class="row mb-4">
+            <div class="col">
+                <h1><i class="fas fa-certificate text-primary mr-2"></i>My Qualifications</h1>
+                <p class="lead">View your current qualification status and progress.</p>
+            </div>
+        </div>
+
+        <% if (locals.error) { %>
+            <div class="alert alert-danger"><%= error %></div>
+        <% } %>
+        
+        <% if (locals.success) { %>
+            <div class="alert alert-success"><%= success %></div>
+        <% } %>
+
+        <div class="row">
+            <div class="col-md-4 mb-4">
+                <div class="card my-qualifications">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0"><i class="fas fa-check-circle mr-2"></i>Completed Qualifications</h5>
+                    </div>
+                    <div class="card-body">
+                        <% if (completedQualifications && completedQualifications.length > 0) { %>
+                            <ul class="list-group">
+                                <% completedQualifications.forEach(qual => { %>
+                                    <li class="list-group-item d-flex justify-content-between align-items-center qualification-card completed">
+                                        <div>
+                                            <h6 class="mb-1 qualification-title"><%= qual.qualification.name %></h6>
+                                            <small class="text-muted">Earned: <%= new Date(qual.earnedDate).toLocaleDateString() %></small>
+                                        </div>
+                                        <span class="status-complete">Completed</span>
+                                    </li>
+                                <% }); %>
+                            </ul>
+                        <% } else { %>
+                            <p class="text-muted mb-0">You have not completed any qualifications yet.</p>
+                        <% } %>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-8 mb-4">
+                <div class="card my-qualifications">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0"><i class="fas fa-spinner mr-2"></i>In Progress Qualifications</h5>
+                    </div>
+                    <div class="card-body">
+                        <% if (inProgressQualifications && inProgressQualifications.length > 0) { %>
+                            <% inProgressQualifications.forEach(qual => { %>
+                                <div class="card mb-3 qualification-card in-progress">
+                                    <div class="card-header qualification-header">
+                                        <h5 class="mb-0 qualification-title"><%= qual.qualification.name %></h5>
+                                        <% 
+                                            const completedCount = qual.completedClasses.length;
+                                            const totalCount = completedCount + qual.missingClasses.length;
+                                            const percentage = totalCount > 0 ? Math.floor((completedCount / totalCount) * 100) : 0;
+                                        %>
+                                        <span class="status-in-progress"><%= percentage %>% Complete</span>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="progress-wrapper">
+                                            <div class="progress">
+                                                <div 
+                                                    class="progress-bar bg-info" 
+                                                    role="progressbar" 
+                                                    style="width: <%= percentage %>%;"
+                                                    aria-valuenow="<%= percentage %>" 
+                                                    aria-valuemin="0" 
+                                                    aria-valuemax="100">
+                                                    <%= percentage %>%
+                                                </div>
+                                            </div>
+                                            <div class="progress-label">
+                                                <span><%= completedCount %> completed</span>
+                                                <span><%= totalCount %> total required</span>
+                                            </div>
+                                        </div>
+                                        
+                                        <% if (qual.completedClasses.length > 0) { %>
+                                            <h6><i class="fas fa-check-double text-success mr-2"></i>Completed Classes:</h6>
+                                            <ul class="class-list mb-3">
+                                                <% qual.completedClasses.forEach(classItem => { %>
+                                                    <li>
+                                                        <span class="class-name"><%= classItem.class.name %></span>
+                                                        <span class="class-status">
+                                                            <small class="text-muted mr-2">Completed: <%= new Date(classItem.completedDate).toLocaleDateString() %></small>
+                                                            <span class="badge badge-success"><i class="fas fa-check mr-1"></i>Complete</span>
+                                                        </span>
+                                                    </li>
+                                                <% }); %>
+                                            </ul>
+                                        <% } %>
+                                        
+                                        <% if (qual.missingClasses.length > 0) { %>
+                                            <h6><i class="fas fa-tasks text-info mr-2"></i>Remaining Classes Needed:</h6>
+                                            <ul class="class-list">
+                                                <% qual.missingClasses.forEach(classItem => { %>
+                                                    <li>
+                                                        <span class="class-name"><%= classItem.name %></span>
+                                                        <a href="/training/submit?class=<%= classItem._id %>" class="btn btn-sm btn-outline-primary">
+                                                            <i class="fas fa-upload"></i> Submit Certificate
+                                                        </a>
+                                                    </li>
+                                                <% }); %>
+                                            </ul>
+                                        <% } %>
+                                    </div>
+                                </div>
+                            <% }); %>
+                        <% } else { %>
+                            <p class="text-muted mb-0">You don't have any qualifications in progress.</p>
+                        <% } %>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <% if (availableQualifications && availableQualifications.length > 0) { %>
+            <div class="card mt-4">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="mb-0"><i class="fas fa-list-alt mr-2"></i>Available Qualifications</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover qualification-table">
+                            <thead>
+                                <tr>
+                                    <th>Qualification</th>
+                                    <th>Description</th>
+                                    <th>Required Classes</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <% availableQualifications.forEach(qual => { %>
+                                    <tr>
+                                        <td><strong><%= qual.name %></strong></td>
+                                        <td><%= qual.description %></td>
+                                        <td>
+                                            <button class="btn btn-sm btn-outline-info" type="button" data-toggle="collapse" data-target="#classes<%= qual._id %>">
+                                                <i class="fas fa-clipboard-list mr-1"></i> Show <%= qual.requiredClasses.length %> classes
+                                            </button>
+                                            <div class="collapse mt-2" id="classes<%= qual._id %>">
+                                                <ul class="list-group">
+                                                    <% qual.requiredClasses.forEach(classItem => { %>
+                                                        <li class="list-group-item py-2"><i class="fas fa-graduation-cap text-secondary mr-2"></i><%= classItem.name %></li>
+                                                    <% }); %>
+                                                </ul>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <a href="/qualifications/start/<%= qual._id %>" class="btn btn-sm btn-success">
+                                                <i class="fas fa-play-circle mr-1"></i> Start This Qualification
+                                            </a>
+                                        </td>
+                                    </tr>
+                                <% }); %>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        <% } %>
+    </div>
+
+    <%- include('./partials/footer') %>
+</body>
+</html> 

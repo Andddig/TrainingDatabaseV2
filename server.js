@@ -46,6 +46,7 @@ const User = mongoose.model('User', new mongoose.Schema({
 
 // Load route modules
 const trainingRoutes = require('./routes/training');
+const qualificationsModule = require('./routes/qualifications');
 
 // Middleware
 app.use(helmet({
@@ -199,104 +200,125 @@ app.get('/auth/microsoft/callback',
 );
 
 app.get('/dashboard', isAuthenticated, (req, res) => {
-  res.render('dashboard', { user: req.user });
-});
-
-app.get('/admin', isAuthenticated, isAdmin, (req, res) => {
-  User.find({})
-    .then(users => {
-      res.render('admin', { user: req.user, users });
-    })
-    .catch(err => {
-      console.error('Error fetching users:', err);
-      res.status(500).render('error', { message: 'Error fetching users' });
-    });
-});
-
-// Use route modules
-app.use('/training', trainingRoutes);
-
-// API endpoint to set admin status
-app.post('/api/set-admin', isAuthenticated, isAdmin, async (req, res) => {
-  try {
-    const { userId, isAdmin } = req.body;
-    
-    if (!userId) {
-      return res.status(400).json({ success: false, message: 'User ID is required' });
-    }
-    
-    const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({ success: false, message: 'User not found' });
-    }
-    
-    user.isAdmin = isAdmin === true || isAdmin === 'true';
-    await user.save();
-    
-    return res.json({ 
-      success: true, 
-      message: `Admin status for ${user.displayName} updated successfully`
-    });
-  } catch (error) {
-    console.error('Error updating admin status:', error);
-    return res.status(500).json({ 
-      success: false, 
-      message: 'Error updating admin status'
-    });
+  // Redirect based on user role
+  if (req.user.roles.includes('Approver')) {
+    res.redirect('/training/approver/dashboard');
+  } else if (req.user.roles.includes('Training Officer')) {
+    res.redirect('/training/manage-classes');
+  } else {
+    res.render('dashboard', { user: req.user });
   }
 });
 
-// API endpoint to update user role
-app.post('/api/set-role', isAuthenticated, isAdmin, async (req, res) => {
+app.get('/admin', isAuthenticated, isAdmin, async (req, res) => {
   try {
-    const { userId, roles } = req.body;
+    const users = await User.find().sort('displayName');
+    res.render('admin', { 
+      user: req.user, 
+      users,
+      error: req.query.error,
+      success: req.query.success
+    });
+  } catch (err) {
+    console.error('Error fetching users:', err);
+    res.status(500).render('error', { message: 'Error loading admin dashboard' });
+  }
+});
+
+// User role management
+app.post('/admin/update-user/:id', isAuthenticated, isAdmin, async (req, res) => {
+  try {
+    const { roles } = req.body;
+    const user = await User.findById(req.params.id);
     
-    if (!userId) {
-      return res.status(400).json({ success: false, message: 'User ID is required' });
-    }
-    
-    if (!Array.isArray(roles)) {
-      return res.status(400).json({ success: false, message: 'Roles must be an array' });
-    }
-    
-    // Validate all roles are valid
-    const validRoles = ['Student', 'Approver', 'Training Officer'];
-    const allRolesValid = roles.every(role => validRoles.includes(role));
-    
-    if (!allRolesValid) {
-      return res.status(400).json({ success: false, message: 'One or more roles are invalid' });
-    }
-    
-    const user = await User.findById(userId);
     if (!user) {
-      return res.status(404).json({ success: false, message: 'User not found' });
+      return res.status(404).render('error', { message: 'User not found' });
     }
     
-    user.roles = roles;
+    user.roles = Array.isArray(roles) ? roles : [roles];
     await user.save();
     
-    return res.json({ 
-      success: true, 
-      message: `Roles for ${user.displayName} updated successfully`
-    });
-  } catch (error) {
-    console.error('Error updating user roles:', error);
-    return res.status(500).json({ 
-      success: false, 
-      message: 'Error updating user roles'
-    });
+    res.redirect('/admin?success=User roles updated successfully');
+  } catch (err) {
+    console.error('Error updating user roles:', err);
+    res.redirect('/admin?error=' + encodeURIComponent(err.message || 'Error updating user roles'));
+  }
+});
+
+// Toggle admin status
+app.post('/admin/toggle-admin/:id', isAuthenticated, isAdmin, async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    
+    if (!user) {
+      return res.status(404).render('error', { message: 'User not found' });
+    }
+    
+    // Don't allow removing admin from main admin account
+    if (user.email === 'adavis@bvar19.org' && user.isAdmin) {
+      return res.redirect('/admin?error=Cannot remove admin status from the primary administrator');
+    }
+    
+    user.isAdmin = !user.isAdmin;
+    await user.save();
+    
+    res.redirect('/admin?success=Admin status updated successfully');
+  } catch (err) {
+    console.error('Error toggling admin status:', err);
+    res.redirect('/admin?error=' + encodeURIComponent(err.message || 'Error updating admin status'));
   }
 });
 
 // Logout route
-app.get('/logout', (req, res) => {
+app.get('/logout', (req, res, next) => {
   req.logout(function(err) {
-    if (err) { 
-      console.error('Logout error:', err);
-      return res.status(500).render('error', { message: 'Error during logout' });
-    }
+    if (err) { return next(err); }
     res.redirect('/');
   });
+});
+
+// Register training routes
+app.use('/training', trainingRoutes);
+
+// Register qualification routes
+app.use('/qualifications', qualificationsModule.router);
+
+// Hook for updating qualifications when a training submission is approved
+// This approach is safer than trying to patch the existing route handler directly
+app.use(async (req, res, next) => {
+  // Store the original end method
+  const originalEnd = res.end;
+  
+  // Override the end method
+  res.end = async function(chunk, encoding) {
+    // If this is a training approval route
+    if (req.method === 'POST' && req.path.match(/\/training\/submission\/.*\/approve$/)) {
+      try {
+        // Get the submission ID from the URL
+        const submissionId = req.path.split('/')[3];
+        const submission = await mongoose.model('TrainingSubmission').findById(submissionId);
+        
+        if (submission && submission.status === 'approved') {
+          // Process qualification updates in the background
+          setTimeout(async () => {
+            try {
+              await qualificationsModule.updateUserQualificationsForApprovedSubmission(submission);
+              console.log(`Qualifications updated for submission ${submission._id}`);
+            } catch (err) {
+              console.error('Error in background qualification update:', err);
+            }
+          }, 0);
+        }
+      } catch (err) {
+        console.error('Error checking for qualification updates:', err);
+      }
+    }
+    
+    // Call the original end method
+    originalEnd.call(this, chunk, encoding);
+  };
+  
+  next();
 });
 
 // 404 handler

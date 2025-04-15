@@ -3,28 +3,36 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Admin Panel - BVAR19 Portal</title>
+  <title>Admin Panel - Training Database</title>
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
   <link rel="stylesheet" href="/css/styles.css">
 </head>
 <body>
-  <div class="container">
-    <header>
-      <h1>BVAR19 Portal</h1>
-      <nav>
-        <a href="/">Home</a>
-        <a href="/dashboard">Dashboard</a>
-        <a href="/logout">Logout</a>
-      </nav>
-    </header>
+  <%- include('./partials/header', { user }) %>
+  
+  <div class="container mt-4">
+    <div class="row mb-4">
+      <div class="col">
+        <h1>Admin Panel</h1>
+        <p>Manage users and their access privileges.</p>
+      </div>
+    </div>
     
-    <main>
-      <div class="admin-panel">
-        <h2>Admin Panel</h2>
-        
-        <div class="admin-section">
-          <h3>User Management</h3>
-          
-          <table class="user-table">
+    <% if (locals.error) { %>
+      <div class="alert alert-danger"><%= error %></div>
+    <% } %>
+    
+    <% if (locals.success) { %>
+      <div class="alert alert-success"><%= success %></div>
+    <% } %>
+    
+    <div class="card">
+      <div class="card-header bg-primary text-white">
+        <h5 class="mb-0">User Management</h5>
+      </div>
+      <div class="card-body">
+        <div class="table-responsive">
+          <table class="table table-striped">
             <thead>
               <tr>
                 <th>Name</th>
@@ -37,42 +45,49 @@
             </thead>
             <tbody>
               <% users.forEach(function(userItem) { %>
-                <tr data-user-id="<%= userItem._id %>">
+                <tr>
                   <td><%= userItem.displayName %></td>
                   <td><%= userItem.email %></td>
                   <td><%= new Date(userItem.createdAt).toLocaleDateString() %></td>
-                  <td class="admin-status"><%= userItem.isAdmin ? 'Admin' : 'User' %></td>
-                  <td class="user-role">
-                    <div class="role-checkboxes" data-user-id="<%= userItem._id %>" <%= userItem.email === 'adavis@bvar19.org' ? 'data-disabled="true"' : '' %>>
-                      <label class="role-checkbox">
-                        <input type="checkbox" value="Student" 
-                          <%= userItem.roles && userItem.roles.includes('Student') ? 'checked' : '' %>
-                          <%= userItem.email === 'adavis@bvar19.org' ? 'disabled' : '' %>>
-                        Student
-                      </label>
-                      <label class="role-checkbox">
-                        <input type="checkbox" value="Approver" 
-                          <%= userItem.roles && userItem.roles.includes('Approver') ? 'checked' : '' %>
-                          <%= userItem.email === 'adavis@bvar19.org' ? 'disabled' : '' %>>
-                        Approver
-                      </label>
-                      <label class="role-checkbox">
-                        <input type="checkbox" value="Training Officer" 
-                          <%= userItem.roles && userItem.roles.includes('Training Officer') ? 'checked' : '' %>
-                          <%= userItem.email === 'adavis@bvar19.org' ? 'disabled' : '' %>>
-                        Training Officer
-                      </label>
-                    </div>
+                  <td><span class="badge badge-<%= userItem.isAdmin ? 'success' : 'secondary' %>">
+                    <%= userItem.isAdmin ? 'Admin' : 'User' %>
+                  </span></td>
+                  <td>
+                    <form action="/admin/update-user/<%= userItem._id %>" method="POST">
+                      <div class="form-group mb-0">
+                        <div class="custom-control custom-checkbox">
+                          <input type="checkbox" class="custom-control-input" id="role-student-<%= userItem._id %>" 
+                            name="roles" value="Student" 
+                            <%= userItem.roles && userItem.roles.includes('Student') ? 'checked' : '' %>>
+                          <label class="custom-control-label" for="role-student-<%= userItem._id %>">Student</label>
+                        </div>
+                        <div class="custom-control custom-checkbox">
+                          <input type="checkbox" class="custom-control-input" id="role-approver-<%= userItem._id %>" 
+                            name="roles" value="Approver" 
+                            <%= userItem.roles && userItem.roles.includes('Approver') ? 'checked' : '' %>>
+                          <label class="custom-control-label" for="role-approver-<%= userItem._id %>">Approver</label>
+                        </div>
+                        <div class="custom-control custom-checkbox">
+                          <input type="checkbox" class="custom-control-input" id="role-officer-<%= userItem._id %>" 
+                            name="roles" value="Training Officer" 
+                            <%= userItem.roles && userItem.roles.includes('Training Officer') ? 'checked' : '' %>>
+                          <label class="custom-control-label" for="role-officer-<%= userItem._id %>">Training Officer</label>
+                        </div>
+                      </div>
                   </td>
                   <td>
-                    <button 
-                      class="toggle-admin-btn"
-                      data-user-id="<%= userItem._id %>"
-                      data-is-admin="<%= userItem.isAdmin %>"
-                      <%= userItem.email === 'adavis@bvar19.org' ? 'disabled' : '' %>
-                    >
-                      <%= userItem.isAdmin ? 'Remove Admin' : 'Make Admin' %>
+                    <button type="submit" class="btn btn-sm btn-primary">
+                      <i class="fas fa-save"></i> Save Roles
                     </button>
+                    </form>
+                    <% if (userItem.email !== 'adavis@bvar19.org' || !userItem.isAdmin) { %>
+                      <form action="/admin/toggle-admin/<%= userItem._id %>" method="POST" class="mt-2">
+                        <button type="submit" class="btn btn-sm btn-<%= userItem.isAdmin ? 'warning' : 'success' %>">
+                          <i class="fas <%= userItem.isAdmin ? 'fa-user-minus' : 'fa-user-shield' %>"></i> 
+                          <%= userItem.isAdmin ? 'Remove Admin' : 'Make Admin' %>
+                        </button>
+                      </form>
+                    <% } %>
                   </td>
                 </tr>
               <% }); %>
@@ -80,112 +95,10 @@
           </table>
         </div>
       </div>
-    </main>
-    
-    <footer>
-      <p>&copy; <%= new Date().getFullYear() %> BVAR19.org. All rights reserved.</p>
-    </footer>
+    </div>
   </div>
   
-  <script>
-    document.addEventListener('DOMContentLoaded', function() {
-      const toggleBtns = document.querySelectorAll('.toggle-admin-btn');
-      const roleCheckboxes = document.querySelectorAll('.role-checkboxes');
-      
-      toggleBtns.forEach(btn => {
-        btn.addEventListener('click', function() {
-          const userId = this.getAttribute('data-user-id');
-          const currentStatus = this.getAttribute('data-is-admin') === 'true';
-          const newStatus = !currentStatus;
-          
-          // Update UI immediately for better UX
-          const statusCell = this.closest('tr').querySelector('.admin-status');
-          statusCell.textContent = newStatus ? 'Admin' : 'User';
-          this.textContent = newStatus ? 'Remove Admin' : 'Make Admin';
-          this.setAttribute('data-is-admin', newStatus.toString());
-          
-          // Send API request
-          fetch('/api/set-admin', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              userId: userId,
-              isAdmin: newStatus
-            })
-          })
-          .then(response => response.json())
-          .then(data => {
-            if (!data.success) {
-              // Revert UI changes if API call failed
-              statusCell.textContent = currentStatus ? 'Admin' : 'User';
-              this.textContent = currentStatus ? 'Remove Admin' : 'Make Admin';
-              this.setAttribute('data-is-admin', currentStatus.toString());
-              alert('Failed to update admin status: ' + data.message);
-            }
-          })
-          .catch(error => {
-            console.error('Error:', error);
-            // Revert UI changes if API call failed
-            statusCell.textContent = currentStatus ? 'Admin' : 'User';
-            this.textContent = currentStatus ? 'Remove Admin' : 'Make Admin';
-            this.setAttribute('data-is-admin', currentStatus.toString());
-            alert('Failed to update admin status. Please try again.');
-          });
-        });
-      });
-      
-      // Role checkboxes change handler
-      roleCheckboxes.forEach(container => {
-        const checkboxes = container.querySelectorAll('input[type="checkbox"]');
-        const userId = container.getAttribute('data-user-id');
-        const isDisabled = container.getAttribute('data-disabled') === 'true';
-        
-        if (!isDisabled) {
-          checkboxes.forEach(checkbox => {
-            checkbox.addEventListener('change', function() {
-              // Get all checked roles for this user
-              const selectedRoles = Array.from(container.querySelectorAll('input[type="checkbox"]:checked'))
-                .map(input => input.value);
-              
-              // Ensure user has at least one role
-              if (selectedRoles.length === 0) {
-                this.checked = true;
-                alert('User must have at least one role');
-                return;
-              }
-              
-              // Send API request
-              fetch('/api/set-role', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                  userId: userId,
-                  roles: selectedRoles
-                })
-              })
-              .then(response => response.json())
-              .then(data => {
-                if (!data.success) {
-                  alert('Failed to update roles: ' + data.message);
-                  // If failed, refresh the page to reset the checkboxes
-                  window.location.reload();
-                }
-              })
-              .catch(error => {
-                console.error('Error:', error);
-                alert('Failed to update roles. Please try again.');
-                // If failed, refresh the page to reset the checkboxes
-                window.location.reload();
-              });
-            });
-          });
-        }
-      });
-    });
-  </script>
+  <%- include('./partials/footer') %>
+  <%- include('./partials/scripts') %>
 </body>
 </html> 

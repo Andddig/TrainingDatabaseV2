@@ -3,95 +3,130 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Dashboard - BVAR19 Portal</title>
+  <title>Dashboard - Training Database</title>
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
   <link rel="stylesheet" href="/css/styles.css">
 </head>
 <body>
-  <div class="container">
-    <header>
-      <h1>BVAR19 Portal</h1>
-      <nav>
-        <a href="/">Home</a>
-        <% if (user.isAdmin) { %>
-          <a href="/admin">Admin Panel</a>
-        <% } %>
-        <a href="/logout">Logout</a>
-      </nav>
-    </header>
+  <%- include('./partials/header', { user }) %>
+  
+  <div class="container mt-4">
+    <div class="row mb-4">
+      <div class="col">
+        <h1>Welcome, <%= user.firstName %>!</h1>
+        <p>Manage your training and qualifications here.</p>
+      </div>
+    </div>
     
-    <main>
-      <div class="dashboard">
-        <div class="welcome-banner">
-          <h2>Welcome, <%= user.firstName %>!</h2>
-          <p>You are logged in to the BVAR19 Portal.</p>
-        </div>
-        
-        <div class="user-info">
-          <h3>Your Account Information</h3>
-          <ul>
-            <li><strong>Name:</strong> <%= user.displayName %></li>
-            <li><strong>Email:</strong> <%= user.email %></li>
-            <li><strong>Role<%= user.roles && user.roles.length > 1 ? 's' : '' %>:</strong> 
+    <div class="row mb-4">
+      <div class="col-md-4">
+        <div class="card h-100">
+          <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">Account Information</h5>
+          </div>
+          <div class="card-body">
+            <p><strong>Name:</strong> <%= user.displayName %></p>
+            <p><strong>Email:</strong> <%= user.email %></p>
+            <p>
+              <strong>Role<%= user.roles && user.roles.length > 1 ? 's' : '' %>:</strong> 
               <% if (user.isAdmin) { %>
-                Administrator
+                <span class="badge badge-success">Administrator</span>
                 <% if (user.roles && user.roles.length > 0) { %> + <% } %>
               <% } %>
               <% if (user.roles && user.roles.length > 0) { %>
-                <%= user.roles.join(', ') %>
+                <% user.roles.forEach(role => { %>
+                  <span class="badge badge-info"><%= role %></span>
+                <% }); %>
               <% } %>
-            </li>
-            <li><strong>Joined:</strong> <%= new Date(user.createdAt).toLocaleDateString() %></li>
-          </ul>
+            </p>
+            <p><strong>Joined:</strong> <%= new Date(user.createdAt).toLocaleDateString() %></p>
+          </div>
         </div>
-        
-        <div class="portal-content">
-          <h3>Training Management</h3>
-          
-          <div class="dashboard-cards">
-            <% if (user.roles && user.roles.includes('Student')) { %>
-              <div class="card">
-                <h4>Student Actions</h4>
-                <ul>
-                  <li><a href="/training/submit">Submit Training Certificate</a></li>
-                  <li><a href="/training/my-submissions">View My Submissions</a></li>
-                </ul>
+      </div>
+      
+      <div class="col-md-8">
+        <div class="card">
+          <div class="card-header bg-info text-white">
+            <h5 class="mb-0">Quick Access</h5>
+          </div>
+          <div class="card-body">
+            <div class="row">
+              <!-- Training Section -->
+              <div class="col-md-6 mb-4">
+                <h5><i class="fas fa-graduation-cap"></i> Training</h5>
+                <div class="list-group">
+                  <a href="/training/submit" class="list-group-item list-group-item-action">
+                    <div class="d-flex w-100 justify-content-between">
+                      <h6 class="mb-1">Submit Training</h6>
+                      <small><i class="fas fa-arrow-right"></i></small>
+                    </div>
+                    <small class="text-muted">Upload new training certificates</small>
+                  </a>
+                  <a href="/training/my-submissions" class="list-group-item list-group-item-action">
+                    <div class="d-flex w-100 justify-content-between">
+                      <h6 class="mb-1">My Submissions</h6>
+                      <small><i class="fas fa-arrow-right"></i></small>
+                    </div>
+                    <small class="text-muted">View your training history</small>
+                  </a>
+                  <% if (user.roles.includes('Approver') || user.roles.includes('Training Officer') || user.isAdmin) { %>
+                    <a href="/training/approver/dashboard" class="list-group-item list-group-item-action">
+                      <div class="d-flex w-100 justify-content-between">
+                        <h6 class="mb-1">Approve Submissions</h6>
+                        <small><i class="fas fa-arrow-right"></i></small>
+                      </div>
+                      <small class="text-muted">Review and approve training submissions</small>
+                    </a>
+                  <% } %>
+                  <% if (user.roles.includes('Training Officer') || user.isAdmin) { %>
+                    <a href="/training/manage-classes" class="list-group-item list-group-item-action">
+                      <div class="d-flex w-100 justify-content-between">
+                        <h6 class="mb-1">Manage Classes</h6>
+                        <small><i class="fas fa-arrow-right"></i></small>
+                      </div>
+                      <small class="text-muted">Create and edit training classes</small>
+                    </a>
+                  <% } %>
+                </div>
               </div>
-            <% } %>
-            
-            <% if (user.isAdmin || (user.roles && user.roles.includes('Approver')) || (user.roles && user.roles.includes('Training Officer'))) { %>
-              <div class="card">
-                <h4>Approver Actions</h4>
-                <ul>
-                  <li><a href="/training/approver/dashboard">Review Submissions</a></li>
-                </ul>
+              
+              <!-- Qualifications Section -->
+              <div class="col-md-6 mb-4">
+                <h5><i class="fas fa-certificate"></i> Qualifications</h5>
+                <div class="list-group">
+                  <a href="/qualifications/my" class="list-group-item list-group-item-action">
+                    <div class="d-flex w-100 justify-content-between">
+                      <h6 class="mb-1">My Qualifications</h6>
+                      <small><i class="fas fa-arrow-right"></i></small>
+                    </div>
+                    <small class="text-muted">Track your qualification progress</small>
+                  </a>
+                  <% if (user.roles.includes('Training Officer') || user.isAdmin) { %>
+                    <a href="/qualifications/dashboard" class="list-group-item list-group-item-action">
+                      <div class="d-flex w-100 justify-content-between">
+                        <h6 class="mb-1">Qualification Dashboard</h6>
+                        <small><i class="fas fa-arrow-right"></i></small>
+                      </div>
+                      <small class="text-muted">View all member qualifications</small>
+                    </a>
+                    <a href="/qualifications/manage" class="list-group-item list-group-item-action">
+                      <div class="d-flex w-100 justify-content-between">
+                        <h6 class="mb-1">Manage Qualifications</h6>
+                        <small><i class="fas fa-arrow-right"></i></small>
+                      </div>
+                      <small class="text-muted">Define qualification requirements</small>
+                    </a>
+                  <% } %>
+                </div>
               </div>
-            <% } %>
-            
-            <% if (user.isAdmin || (user.roles && user.roles.includes('Training Officer'))) { %>
-              <div class="card">
-                <h4>Training Officer Actions</h4>
-                <ul>
-                  <li><a href="/training/manage-classes">Manage Training Classes</a></li>
-                </ul>
-              </div>
-            <% } %>
-            
-            <div class="card">
-              <h4>Quick Links</h4>
-              <ul>
-                <li><a href="#">My Profile</a></li>
-                <li><a href="#">Settings</a></li>
-                <li><a href="#">Help Center</a></li>
-              </ul>
             </div>
           </div>
         </div>
       </div>
-    </main>
-    
-    <footer>
-      <p>&copy; <%= new Date().getFullYear() %> BVAR19.org. All rights reserved.</p>
-    </footer>
+    </div>
   </div>
+  
+  <%- include('./partials/footer') %>
+  <%- include('./partials/scripts') %>
 </body>
 </html> 

@@ -168,9 +168,13 @@ router.get('/my-submissions', isAuthenticated, async (req, res) => {
 // ADMIN/TRAINING OFFICER ROUTES
 
 // Manage classes
-router.get('/manage-classes', isAuthenticated, hasRole(['Training Officer']), async (req, res) => {
+router.get('/manage-classes', isAuthenticated, isTrainingOfficer, async (req, res) => {
   try {
-    const trainingClasses = await TrainingClass.find({}).sort('name');
+    const trainingClasses = await TrainingClass.find()
+      .populate('createdBy', 'displayName')
+      .populate('prerequisites', 'name')
+      .sort('name');
+    
     res.render('manage-classes', { 
       user: req.user, 
       trainingClasses,
@@ -350,7 +354,7 @@ router.post('/submission/:id/comment', isAuthenticated, async (req, res) => {
 // Add new training class
 router.post('/class/add', isAuthenticated, isTrainingOfficer, async (req, res) => {
   try {
-    const { name, description, hoursValue } = req.body;
+    const { name, description, hoursValue, prerequisites } = req.body;
     
     if (!name || name.trim() === '') {
       return res.redirect('/training/manage-classes?error=Class name is required');
@@ -366,6 +370,7 @@ router.post('/class/add', isAuthenticated, isTrainingOfficer, async (req, res) =
       name: name.trim(),
       description: description ? description.trim() : '',
       hoursValue: hoursValue || 0,
+      prerequisites: prerequisites ? (Array.isArray(prerequisites) ? prerequisites : [prerequisites]) : [],
       createdBy: req.user._id
     });
     
@@ -402,15 +407,22 @@ router.post('/class/:id/toggle', isAuthenticated, isTrainingOfficer, async (req,
 // Edit training class form
 router.get('/class/:id/edit', isAuthenticated, isTrainingOfficer, async (req, res) => {
   try {
-    const trainingClass = await TrainingClass.findById(req.params.id);
+    const trainingClass = await TrainingClass.findById(req.params.id)
+      .populate('prerequisites');
     
     if (!trainingClass) {
       return res.status(404).render('error', { message: 'Training class not found' });
     }
     
+    // Get all other classes to select as prerequisites
+    const otherClasses = await TrainingClass.find({
+      _id: { $ne: trainingClass._id }
+    }).sort('name');
+    
     res.render('edit-class', { 
       user: req.user, 
       trainingClass,
+      otherClasses,
       error: req.query.error,
       success: req.query.success
     });
@@ -423,7 +435,7 @@ router.get('/class/:id/edit', isAuthenticated, isTrainingOfficer, async (req, re
 // Update training class
 router.post('/class/:id/update', isAuthenticated, isTrainingOfficer, async (req, res) => {
   try {
-    const { name, description, hoursValue } = req.body;
+    const { name, description, hoursValue, prerequisites } = req.body;
     
     if (!name || name.trim() === '') {
       return res.redirect(`/training/class/${req.params.id}/edit?error=Class name is required`);
@@ -443,9 +455,20 @@ router.post('/class/:id/update', isAuthenticated, isTrainingOfficer, async (req,
       }
     }
     
+    // Check for circular prerequisites (this class can't be a prerequisite of itself or any of its prerequisites)
+    if (prerequisites) {
+      const prereqSet = new Set(Array.isArray(prerequisites) ? prerequisites : [prerequisites]);
+      if (prereqSet.has(trainingClass._id.toString())) {
+        return res.redirect(`/training/class/${req.params.id}/edit?error=A class cannot be a prerequisite of itself`);
+      }
+      
+      // More complex circular reference check could be added here if needed
+    }
+    
     trainingClass.name = name.trim();
     trainingClass.description = description ? description.trim() : '';
     trainingClass.hoursValue = hoursValue || 0;
+    trainingClass.prerequisites = prerequisites ? (Array.isArray(prerequisites) ? prerequisites : [prerequisites]) : [];
     
     await trainingClass.save();
     res.redirect(`/training/manage-classes?success=Training class updated successfully`);

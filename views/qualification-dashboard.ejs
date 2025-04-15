@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Qualification Dashboard</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+    <%- include('./partials/header', { user }) %>
+    
+    <div class="container-fluid mt-4 qualification-dashboard">
+        <div class="row mb-4">
+            <div class="col">
+                <h1>Qualification Dashboard</h1>
+                <p>View and manage qualification status for all members.</p>
+            </div>
+            <div class="col-auto">
+                <a href="/qualifications/manage" class="btn btn-primary">
+                    <i class="fas fa-cog"></i> Manage Qualification Definitions
+                </a>
+            </div>
+        </div>
+
+        <% if (locals.error) { %>
+            <div class="alert alert-danger"><%= error %></div>
+        <% } %>
+        
+        <% if (locals.success) { %>
+            <div class="alert alert-success"><%= success %></div>
+        <% } %>
+
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Filter Options</h5>
+            </div>
+            <div class="card-body qualification-filters">
+                <form method="GET" action="/qualifications/dashboard">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label for="userName">Member Name</label>
+                                <input type="text" class="form-control" id="userName" name="userName" value="<%= filter.userName || '' %>">
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label for="qualification">Qualification</label>
+                                <select class="form-control" id="qualification" name="qualification">
+                                    <option value="">All Qualifications</option>
+                                    <% qualificationList.forEach(qual => { %>
+                                        <option value="<%= qual._id %>" <% if (filter.qualification === qual._id.toString()) { %>selected<% } %>>
+                                            <%= qual.name %>
+                                        </option>
+                                    <% }); %>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label for="status">Status</label>
+                                <select class="form-control" id="status" name="status">
+                                    <option value="all" <% if (filter.status === 'all') { %>selected<% } %>>All</option>
+                                    <option value="complete" <% if (filter.status === 'complete') { %>selected<% } %>>Complete</option>
+                                    <option value="incomplete" <% if (filter.status === 'incomplete') { %>selected<% } %>>In Progress</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-3 d-flex align-items-end">
+                            <div class="form-group w-100">
+                                <button type="submit" class="btn btn-primary w-100">
+                                    <i class="fas fa-search"></i> Apply Filters
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <% if (userQualifications && userQualifications.length > 0) { %>
+            <div class="qualification-stats">
+                <div class="qualification-stat-item">
+                    <div class="stat-value"><%= stats.totalUsers %></div>
+                    <div class="stat-label">Total Members</div>
+                </div>
+                <div class="qualification-stat-item">
+                    <div class="stat-value"><%= stats.totalQualifications %></div>
+                    <div class="stat-label">Total Qualifications</div>
+                </div>
+                <div class="qualification-stat-item">
+                    <div class="stat-value"><%= stats.completedQualifications %></div>
+                    <div class="stat-label">Completed</div>
+                </div>
+                <div class="qualification-stat-item">
+                    <div class="stat-value"><%= stats.inProgressQualifications %></div>
+                    <div class="stat-label">In Progress</div>
+                </div>
+            </div>
+        <% } %>
+
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Member Qualifications</h5>
+            </div>
+            <div class="card-body">
+                <% if (userQualifications && userQualifications.length > 0) { %>
+                    <div class="table-responsive">
+                        <table class="table table-striped qualification-table">
+                            <thead>
+                                <tr>
+                                    <th>Member</th>
+                                    <th>Qualification</th>
+                                    <th>Progress</th>
+                                    <th>Status</th>
+                                    <th>Last Updated</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <% userQualifications.forEach(userQual => { %>
+                                    <tr class="<%= userQual.isComplete ? 'qualification-complete' : 'qualification-in-progress' %>">
+                                        <td>
+                                            <strong><%= userQual.user.displayName %></strong>
+                                            <small class="d-block text-muted"><%= userQual.user.email %></small>
+                                        </td>
+                                        <td><%= userQual.qualification.name %></td>
+                                        <td>
+                                            <% 
+                                                const completedCount = userQual.completedClasses.length;
+                                                const totalCount = completedCount + userQual.missingClasses.length;
+                                                const percentage = totalCount > 0 ? Math.floor((completedCount / totalCount) * 100) : 0;
+                                            %>
+                                            <div class="progress-wrapper">
+                                                <div class="progress">
+                                                    <div 
+                                                        class="progress-bar <%= userQual.isComplete ? 'bg-success' : 'bg-info' %>" 
+                                                        role="progressbar" 
+                                                        <% const widthStyle = `width: ${percentage}%`; %>
+                                                        style="<%= widthStyle %>"
+                                                        aria-valuenow="<%= percentage %>" 
+                                                        aria-valuemin="0" 
+                                                        aria-valuemax="100">
+                                                        <%= percentage %>%
+                                                    </div>
+                                                </div>
+                                                <div class="progress-label">
+                                                    <span><small><%= completedCount %> of <%= totalCount %> classes</small></span>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <span class="<%= userQual.isComplete ? 'status-complete' : 'status-in-progress' %>">
+                                                <%= userQual.isComplete ? 'Complete' : 'In Progress' %>
+                                            </span>
+                                            <% if (userQual.isComplete && userQual.earnedDate) { %>
+                                                <small class="d-block text-muted mt-1">
+                                                    <i class="fas fa-calendar-check"></i> <%= new Date(userQual.earnedDate).toLocaleDateString() %>
+                                                </small>
+                                            <% } %>
+                                        </td>
+                                        <td><%= new Date(userQual.lastUpdated).toLocaleDateString() %></td>
+                                        <td>
+                                            <a href="/qualifications/details/<%= userQual._id %>" class="btn btn-sm btn-primary">
+                                                <i class="fas fa-eye"></i> View Details
+                                            </a>
+                                        </td>
+                                    </tr>
+                                <% }); %>
+                            </tbody>
+                        </table>
+                    </div>
+                <% } else { %>
+                    <div class="alert alert-info">
+                        No qualification records match your search criteria.
+                    </div>
+                <% } %>
+            </div>
+        </div>
+    </div>
+
+    <%- include('./partials/footer') %>
+    <%- include('./partials/scripts') %>
+</body>
+</html> 

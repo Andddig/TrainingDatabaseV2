@@ -3,95 +3,102 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Approver Dashboard - BVAR19 Portal</title>
+  <title>Approver Dashboard - Training Database</title>
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
   <link rel="stylesheet" href="/css/styles.css">
 </head>
 <body>
-  <div class="container">
-    <header>
-      <h1>BVAR19 Portal</h1>
-      <nav>
-        <a href="/">Home</a>
-        <a href="/dashboard">Dashboard</a>
-        <% if (user.isAdmin) { %>
-          <a href="/admin">Admin Panel</a>
-        <% } %>
-        <a href="/logout">Logout</a>
-      </nav>
-    </header>
-    
-    <main>
-      <div class="approver-dashboard">
-        <h2>Training Approval Dashboard</h2>
-        
-        <div class="submission-filters">
-          <h3>Filter Submissions</h3>
-          <form action="/training/approver/dashboard" method="GET">
-            <div class="filter-controls">
-              <div class="filter-group">
-                <label for="status">Status:</label>
-                <select id="status" name="status">
-                  <option value="all" <%= filter.status === 'all' ? 'selected' : '' %>>All</option>
-                  <option value="pending" <%= filter.status === 'pending' ? 'selected' : '' %>>Pending</option>
-                  <option value="approved" <%= filter.status === 'approved' ? 'selected' : '' %>>Approved</option>
-                  <option value="rejected" <%= filter.status === 'rejected' ? 'selected' : '' %>>Rejected</option>
-                </select>
-              </div>
-              
-              <button type="submit" class="btn-filter">Apply Filters</button>
-            </div>
-          </form>
-        </div>
-        
-        <div class="submission-list">
-          <h3>Training Submissions (<%= submissions.length %>)</h3>
-          
-          <% if (submissions.length === 0) { %>
-            <div class="no-submissions">
-              <p>No submissions found matching the current filters.</p>
-            </div>
-          <% } else { %>
-            <div class="submissions-table">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Student</th>
-                    <th>Training Class</th>
-                    <th>Date Range</th>
-                    <th>Hours</th>
-                    <th>Status</th>
-                    <th>Submitted</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <% submissions.forEach(submission => { %>
-                    <tr class="submission-row <%= submission.status %>">
-                      <td><%= submission.student.displayName %></td>
-                      <td><%= submission.trainingClass.name %></td>
-                      <td>
-                        <%= new Date(submission.startDate).toLocaleDateString() %> to 
-                        <%= new Date(submission.endDate).toLocaleDateString() %>
-                      </td>
-                      <td><%= submission.hoursLogged %></td>
-                      <td><span class="status-badge <%= submission.status %>"><%= submission.status %></span></td>
-                      <td><%= new Date(submission.createdAt).toLocaleDateString() %></td>
-                      <td>
-                        <a href="/training/submission/<%= submission._id %>" class="btn-view">View</a>
-                      </td>
-                    </tr>
-                  <% }); %>
-                </tbody>
-              </table>
-            </div>
-          <% } %>
-        </div>
+  <%- include('./partials/header', { user }) %>
+  
+  <div class="container mt-4">
+    <div class="row mb-4">
+      <div class="col">
+        <h1>Training Approval Dashboard</h1>
+        <p>Review and approve training submissions.</p>
       </div>
-    </main>
+    </div>
     
-    <footer>
-      <p>&copy; <%= new Date().getFullYear() %> BVAR19.org. All rights reserved.</p>
-    </footer>
+    <div class="card mb-4">
+      <div class="card-header bg-primary text-white">
+        <h5 class="mb-0">Filter Submissions</h5>
+      </div>
+      <div class="card-body">
+        <form action="/training/approver/dashboard" method="GET">
+          <div class="form-row align-items-end">
+            <div class="col-md-4 mb-3">
+              <label for="status">Status:</label>
+              <select class="form-control" id="status" name="status">
+                <option value="all" <%= filter.status === 'all' ? 'selected' : '' %>>All</option>
+                <option value="pending" <%= filter.status === 'pending' ? 'selected' : '' %>>Pending</option>
+                <option value="approved" <%= filter.status === 'approved' ? 'selected' : '' %>>Approved</option>
+                <option value="rejected" <%= filter.status === 'rejected' ? 'selected' : '' %>>Rejected</option>
+              </select>
+            </div>
+            <div class="col-md-2 mb-3">
+              <button type="submit" class="btn btn-primary w-100">
+                <i class="fas fa-filter mr-1"></i> Apply Filters
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+    
+    <div class="card">
+      <div class="card-header bg-primary text-white">
+        <h5 class="mb-0">Training Submissions (<%= submissions.length %>)</h5>
+      </div>
+      <div class="card-body">
+        <% if (submissions.length === 0) { %>
+          <div class="alert alert-info">
+            No submissions found matching the current filters.
+          </div>
+        <% } else { %>
+          <div class="table-responsive">
+            <table class="table table-striped">
+              <thead>
+                <tr>
+                  <th>Student</th>
+                  <th>Training Class</th>
+                  <th>Date Range</th>
+                  <th>Hours</th>
+                  <th>Status</th>
+                  <th>Submitted</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% submissions.forEach(submission => { %>
+                  <tr>
+                    <td><%= submission.student.displayName %></td>
+                    <td><%= submission.trainingClass.name %></td>
+                    <td>
+                      <%= new Date(submission.startDate).toLocaleDateString() %> to 
+                      <%= new Date(submission.endDate).toLocaleDateString() %>
+                    </td>
+                    <td><%= submission.hoursLogged %></td>
+                    <td>
+                      <span class="badge badge-<%= submission.status === 'approved' ? 'success' : (submission.status === 'rejected' ? 'danger' : 'warning') %>">
+                        <%= submission.status %>
+                      </span>
+                    </td>
+                    <td><%= new Date(submission.createdAt).toLocaleDateString() %></td>
+                    <td>
+                      <a href="/training/submission/<%= submission._id %>" class="btn btn-sm btn-primary">
+                        <i class="fas fa-eye mr-1"></i> View
+                      </a>
+                    </td>
+                  </tr>
+                <% }); %>
+              </tbody>
+            </table>
+          </div>
+        <% } %>
+      </div>
+    </div>
   </div>
+  
+  <%- include('./partials/footer') %>
+  <%- include('./partials/scripts') %>
 </body>
 </html> 

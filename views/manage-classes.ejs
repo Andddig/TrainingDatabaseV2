@@ -3,138 +3,157 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Manage Training Classes - BVAR19 Portal</title>
+  <title>Manage Training Classes - Training Database</title>
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
   <link rel="stylesheet" href="/css/styles.css">
 </head>
 <body>
-  <div class="container">
-    <header>
-      <h1>BVAR19 Portal</h1>
-      <nav>
-        <a href="/">Home</a>
-        <a href="/dashboard">Dashboard</a>
-        <% if (user.isAdmin) { %>
-          <a href="/admin">Admin Panel</a>
-        <% } %>
-        <a href="/logout">Logout</a>
-      </nav>
-    </header>
+  <%- include('./partials/header', { user }) %>
+  
+  <div class="container mt-4">
+    <div class="row mb-4">
+      <div class="col">
+        <h1>Manage Training Classes</h1>
+        <p>Create and manage training classes for your organization.</p>
+      </div>
+    </div>
     
-    <main>
-      <div class="manage-classes">
-        <div class="classes-header">
-          <h2>Manage Training Classes</h2>
-          <button id="addClassBtn" class="btn-add">Add New Class</button>
-        </div>
-        
-        <% if (error) { %>
-          <div class="error-message">
-            <p><%= error %></p>
-          </div>
-        <% } %>
-        
-        <% if (success) { %>
-          <div class="success-message">
-            <p><%= success %></p>
-          </div>
-        <% } %>
-        
+    <% if (error) { %>
+      <div class="alert alert-danger"><%= error %></div>
+    <% } %>
+    
+    <% if (success) { %>
+      <div class="alert alert-success"><%= success %></div>
+    <% } %>
+    
+    <div class="card mb-4">
+      <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Training Classes</h5>
+        <button id="addClassBtn" class="btn btn-light btn-sm"><i class="fas fa-plus mr-1"></i> Add New Class</button>
+      </div>
+      <div class="card-body">
         <!-- Add Class Form (Hidden initially) -->
-        <div id="addClassForm" class="class-form" style="display: none;">
-          <h3>Add New Training Class</h3>
+        <div id="addClassForm" class="mb-4" style="display: none;">
+          <h5 class="border-bottom pb-2 mb-3">Add New Training Class</h5>
           <form action="/training/class/add" method="POST">
             <div class="form-group">
               <label for="name">Class Name:</label>
-              <input type="text" id="name" name="name" required>
+              <input type="text" class="form-control" id="name" name="name" required>
             </div>
             
             <div class="form-group">
               <label for="description">Description:</label>
-              <textarea id="description" name="description" rows="3"></textarea>
+              <textarea class="form-control" id="description" name="description" rows="3"></textarea>
             </div>
             
             <div class="form-group">
               <label for="hoursValue">Default Hours Value:</label>
-              <input type="number" id="hoursValue" name="hoursValue" min="0" step="0.5" value="0">
+              <input type="number" class="form-control" id="hoursValue" name="hoursValue" min="0" step="0.5" value="0">
             </div>
             
-            <div class="form-actions">
-              <button type="submit" class="btn-save">Save Class</button>
-              <button type="button" id="cancelAddBtn" class="btn-cancel">Cancel</button>
+            <div class="form-group">
+              <label>Prerequisites (Classes that must be completed first):</label>
+              <div class="prerequisites-container">
+                <% if (trainingClasses && trainingClasses.length > 0) { %>
+                  <select name="prerequisites" multiple class="form-control" id="prerequisites">
+                    <% trainingClasses.forEach(classItem => { %>
+                      <option value="<%= classItem._id %>"><%= classItem.name %></option>
+                    <% }); %>
+                  </select>
+                  <small class="form-text text-muted">Hold Ctrl/Cmd to select multiple prerequisites. Order matters - list them in the order they should be completed.</small>
+                <% } else { %>
+                  <p class="text-muted">No other classes available to set as prerequisites.</p>
+                <% } %>
+              </div>
+            </div>
+            
+            <div class="form-group text-right">
+              <button type="button" id="cancelAddBtn" class="btn btn-secondary mr-2">Cancel</button>
+              <button type="submit" class="btn btn-primary">Save Class</button>
             </div>
           </form>
+          <hr>
         </div>
         
         <!-- Class List -->
-        <div class="classes-list">
-          <h3>Available Training Classes</h3>
-          
-          <% if (trainingClasses.length === 0) { %>
-            <div class="no-classes">
-              <p>No training classes have been created yet.</p>
-            </div>
-          <% } else { %>
-            <div class="classes-table">
-              <table>
-                <thead>
+        <% if (trainingClasses.length === 0) { %>
+          <div class="alert alert-info">
+            <p class="mb-0">No training classes have been created yet.</p>
+          </div>
+        <% } else { %>
+          <div class="table-responsive">
+            <table class="table table-striped">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Description</th>
+                  <th>Default Hours</th>
+                  <th>Prerequisites</th>
+                  <th>Status</th>
+                  <th>Created By</th>
+                  <th>Created</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% trainingClasses.forEach(trainingClass => { %>
                   <tr>
-                    <th>Name</th>
-                    <th>Description</th>
-                    <th>Default Hours</th>
-                    <th>Status</th>
-                    <th>Created By</th>
-                    <th>Created</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <% trainingClasses.forEach(trainingClass => { %>
-                    <tr class="class-row <%= trainingClass.isActive ? 'active' : 'inactive' %>">
-                      <td><%= trainingClass.name %></td>
-                      <td><%= trainingClass.description || 'No description' %></td>
-                      <td><%= trainingClass.hoursValue %></td>
-                      <td><span class="status-badge <%= trainingClass.isActive ? 'active' : 'inactive' %>">
+                    <td><%= trainingClass.name %></td>
+                    <td><%= trainingClass.description || 'No description' %></td>
+                    <td><%= trainingClass.hoursValue %></td>
+                    <td>
+                      <% if (trainingClass.prerequisites && trainingClass.prerequisites.length > 0) { %>
+                        <ul class="mb-0 pl-3">
+                          <% trainingClass.prerequisites.forEach(prereq => { %>
+                            <li><%= prereq.name || prereq %></li>
+                          <% }); %>
+                        </ul>
+                      <% } else { %>
+                        <span class="text-muted">None</span>
+                      <% } %>
+                    </td>
+                    <td>
+                      <span class="badge badge-<%= trainingClass.isActive ? 'success' : 'secondary' %>">
                         <%= trainingClass.isActive ? 'Active' : 'Inactive' %>
-                      </span></td>
-                      <td><%= trainingClass.createdBy ? trainingClass.createdBy.displayName : 'System' %></td>
-                      <td><%= new Date(trainingClass.createdAt).toLocaleDateString() %></td>
-                      <td>
-                        <div class="action-buttons">
-                          <a href="/training/class/<%= trainingClass._id %>/edit" class="btn-edit">Edit</a>
-                          <form action="/training/class/<%= trainingClass._id %>/toggle" method="POST" class="inline-form">
-                            <button type="submit" class="btn-toggle">
-                              <%= trainingClass.isActive ? 'Deactivate' : 'Activate' %>
-                            </button>
-                          </form>
-                        </div>
-                      </td>
-                    </tr>
-                  <% }); %>
-                </tbody>
-              </table>
-            </div>
-          <% } %>
-        </div>
+                      </span>
+                    </td>
+                    <td><%= trainingClass.createdBy ? trainingClass.createdBy.displayName : 'System' %></td>
+                    <td><%= new Date(trainingClass.createdAt).toLocaleDateString() %></td>
+                    <td>
+                      <div class="btn-group btn-group-sm">
+                        <a href="/training/class/<%= trainingClass._id %>/edit" class="btn btn-primary">
+                          <i class="fas fa-edit"></i>
+                        </a>
+                        <form action="/training/class/<%= trainingClass._id %>/toggle" method="POST" class="d-inline">
+                          <button type="submit" class="btn btn-<%= trainingClass.isActive ? 'warning' : 'success' %>">
+                            <i class="fas fa-<%= trainingClass.isActive ? 'ban' : 'check' %>"></i>
+                          </button>
+                        </form>
+                      </div>
+                    </td>
+                  </tr>
+                <% }); %>
+              </tbody>
+            </table>
+          </div>
+        <% } %>
       </div>
-    </main>
-    
-    <footer>
-      <p>&copy; <%= new Date().getFullYear() %> BVAR19.org. All rights reserved.</p>
-    </footer>
+    </div>
   </div>
   
+  <%- include('./partials/footer') %>
+  <%- include('./partials/scripts') %>
+  
   <script>
-    // Toggle Add Class form
-    const addClassBtn = document.getElementById('addClassBtn');
-    const addClassForm = document.getElementById('addClassForm');
-    const cancelAddBtn = document.getElementById('cancelAddBtn');
-    
-    addClassBtn.addEventListener('click', function() {
-      addClassForm.style.display = 'block';
-    });
-    
-    cancelAddBtn.addEventListener('click', function() {
-      addClassForm.style.display = 'none';
+    $(document).ready(function() {
+      // Toggle Add Class form
+      $('#addClassBtn').click(function() {
+        $('#addClassForm').slideDown();
+      });
+      
+      $('#cancelAddBtn').click(function() {
+        $('#addClassForm').slideUp();
+      });
     });
   </script>
 </body>

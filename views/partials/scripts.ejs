@@ -1,0 +1,35 @@
+<!-- Essential scripts - jQuery and Bootstrap -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
+
+<!-- Dropdown initialization -->
+<script>
+  $(document).ready(function() {
+    // Initialize Bootstrap dropdowns
+    $('.dropdown-toggle').dropdown();
+    
+1    // Better dropdown behavior for desktop - keep menu open when hovering on dropdown or its menu
+    if (window.innerWidth >= 992) {
+      $('.dropdown').on({
+        // Show dropdown on hover
+        mouseenter: function() {
+          $(this).addClass('show');
+          $(this).find('.dropdown-menu').addClass('show');
+        },
+        // Only hide when mouse leaves both dropdown and its menu
+        mouseleave: function() {
+          $(this).removeClass('show');
+          $(this).find('.dropdown-menu').removeClass('show');
+        }
+      });
+    }
+    
+    // Enable click functionality on dropdown toggles for mobile and backup for desktop
+    $('.dropdown-toggle').on('click', function(e) {
+      e.preventDefault();
+      const dropdownList = $(this).next('.dropdown-menu');
+      $('.dropdown-menu').not(dropdownList).removeClass('show');
+      dropdownList.toggleClass('show');
+    });
+  });
+</script> 

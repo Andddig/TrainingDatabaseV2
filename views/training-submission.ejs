@@ -3,43 +3,38 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Submit Training - BVAR19 Portal</title>
+  <title>Submit Training - Training Database</title>
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
   <link rel="stylesheet" href="/css/styles.css">
 </head>
 <body>
-  <div class="container">
-    <header>
-      <h1>BVAR19 Portal</h1>
-      <nav>
-        <a href="/">Home</a>
-        <a href="/dashboard">Dashboard</a>
-        <% if (user.isAdmin) { %>
-          <a href="/admin">Admin Panel</a>
-        <% } %>
-        <a href="/logout">Logout</a>
-      </nav>
-    </header>
+  <%- include('./partials/header', { user }) %>
+  
+  <div class="container mt-4">
+    <div class="row mb-4">
+      <div class="col">
+        <h1>Submit Training Certificate</h1>
+        <p>Upload your training certificates to track your progress.</p>
+      </div>
+    </div>
     
-    <main>
-      <div class="submission-form">
-        <h2>Submit Training Certificate</h2>
-        
-        <% if (error) { %>
-          <div class="error-message">
-            <p><%= error %></p>
-          </div>
-        <% } %>
-        
-        <% if (success) { %>
-          <div class="success-message">
-            <p><%= success %></p>
-          </div>
-        <% } %>
-        
+    <% if (error) { %>
+      <div class="alert alert-danger"><%= error %></div>
+    <% } %>
+    
+    <% if (success) { %>
+      <div class="alert alert-success"><%= success %></div>
+    <% } %>
+    
+    <div class="card">
+      <div class="card-header bg-primary text-white">
+        <h5 class="mb-0">Training Details</h5>
+      </div>
+      <div class="card-body">
         <form action="/training/submit" method="POST" enctype="multipart/form-data">
           <div class="form-group">
             <label for="trainingClass">Training Class:</label>
-            <select id="trainingClass" name="trainingClass" required>
+            <select class="form-control" id="trainingClass" name="trainingClass" required>
               <option value="">-- Select Training Class --</option>
               <% trainingClasses.forEach(trainingClass => { %>
                 <option value="<%= trainingClass._id %>"><%= trainingClass.name %></option>
@@ -49,44 +44,54 @@
           
           <div class="form-group">
             <label for="startDate">Start Date:</label>
-            <input type="date" id="startDate" name="startDate" required>
+            <input class="form-control" type="date" id="startDate" name="startDate" required>
           </div>
           
           <div class="form-group">
             <label for="endDate">End Date:</label>
-            <input type="date" id="endDate" name="endDate" required>
+            <input class="form-control" type="date" id="endDate" name="endDate" required>
           </div>
           
           <div class="form-group">
             <label for="hoursLogged">Hours Completed:</label>
-            <input type="number" id="hoursLogged" name="hoursLogged" min="0" step="0.5" required>
+            <input class="form-control" type="number" id="hoursLogged" name="hoursLogged" min="0" step="0.5" required>
           </div>
           
           <div class="form-group">
             <label for="certificateFile">Upload Certificate (PDF or Image):</label>
-            <input type="file" id="certificateFile" name="certificateFile" accept=".pdf,.jpg,.jpeg,.png" required>
+            <div class="custom-file">
+              <input type="file" class="custom-file-input" id="certificateFile" name="certificateFile" accept=".pdf,.jpg,.jpeg,.png" required>
+              <label class="custom-file-label" for="certificateFile">Choose file...</label>
+            </div>
           </div>
           
-          <button type="submit" class="btn-submit">Submit for Approval</button>
+          <button type="submit" class="btn btn-primary"><i class="fas fa-upload mr-1"></i> Submit for Approval</button>
         </form>
       </div>
-    </main>
-    
-    <footer>
-      <p>&copy; <%= new Date().getFullYear() %> BVAR19.org. All rights reserved.</p>
-    </footer>
+    </div>
   </div>
+  
+  <%- include('./partials/footer') %>
+  <%- include('./partials/scripts') %>
   
   <script>
     // Simple client-side validation
-    document.querySelector('form').addEventListener('submit', function(e) {
-      const startDate = new Date(document.getElementById('startDate').value);
-      const endDate = new Date(document.getElementById('endDate').value);
+    $(document).ready(function() {
+      $('form').on('submit', function(e) {
+        const startDate = new Date($('#startDate').val());
+        const endDate = new Date($('#endDate').val());
+        
+        if (endDate < startDate) {
+          e.preventDefault();
+          alert('End date cannot be earlier than start date.');
+        }
+      });
       
-      if (endDate < startDate) {
-        e.preventDefault();
-        alert('End date cannot be earlier than start date.');
-      }
+      // Update the file input label with the selected filename
+      $('.custom-file-input').on('change', function() {
+        let fileName = $(this).val().split('\\').pop();
+        $(this).next('.custom-file-label').html(fileName || 'Choose file...');
+      });
     });
   </script>
 </body>
