@@ -3,9 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Edit Qualification</title>
-    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <title>Edit Qualification - Training Database</title>
+    <link rel="stylesheet" href="/css/bootstrap.min.css">
+    <link rel="stylesheet" href="/css/font-awesome.min.css">
     <link rel="stylesheet" href="/css/styles.css">
+    <script src="/js/jquery.min.js"></script>
+    <script src="/js/bootstrap.bundle.min.js"></script>
+    <script src="/js/sortable.min.js"></script>
 </head>
 <body>
     <%- include('./partials/header', { user }) %>
@@ -13,25 +17,27 @@
     <div class="container mt-4">
         <div class="row mb-4">
             <div class="col">
-                <h1>Edit Qualification</h1>
-                <p>Modify qualification requirements and details.</p>
+                <h1><i class="fas fa-cogs text-primary mr-2"></i>Edit Qualification</h1>
             </div>
             <div class="col-auto">
                 <a href="/qualifications/manage" class="btn btn-secondary">
-                    <i class="fas fa-arrow-left"></i> Back to List
+                    <i class="fas fa-arrow-left"></i> Back to Qualifications
                 </a>
             </div>
         </div>
-
-        <% if (locals.error) { %>
+        
+        <% if (error) { %>
             <div class="alert alert-danger"><%= error %></div>
         <% } %>
         
-        <% if (locals.success) { %>
+        <% if (success) { %>
             <div class="alert alert-success"><%= success %></div>
         <% } %>
-
+        
         <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">Qualification Details</h5>
+            </div>
             <div class="card-body">
                 <form action="/qualifications/update/<%= qualification._id %>" method="POST">
                     <div class="form-group">
@@ -44,51 +50,138 @@
                     </div>
                     <div class="form-group">
                         <label>Required Training Classes <span class="text-danger">*</span></label>
-                        <div class="border p-3 rounded">
-                            <% if (trainingClasses && trainingClasses.length > 0) { %>
-                                <div class="row">
-                                    <% trainingClasses.forEach(classItem => { %>
-                                        <div class="col-md-4 mb-2">
-                                            <div class="custom-control custom-checkbox">
-                                                <input type="checkbox" 
-                                                    class="custom-control-input" 
-                                                    id="class_<%= classItem._id %>" 
-                                                    name="requiredClasses" 
-                                                    value="<%= classItem._id %>"
-                                                    <% if (qualification.requiredClasses.some(c => c._id.toString() === classItem._id.toString())) { %>checked<% } %>>
-                                                <label class="custom-control-label" for="class_<%= classItem._id %>">
+                        <div class="transfer-list">
+                            <div class="transfer-list-column">
+                                <div class="transfer-list-header">Available Classes</div>
+                                <div class="transfer-list-items" id="availableClasses">
+                                    <% if (trainingClasses && trainingClasses.length > 0) { %>
+                                        <% trainingClasses.forEach(classItem => { %>
+                                            <% if (!qualification.requiredClasses.some(c => c._id.toString() === classItem._id.toString())) { %>
+                                                <div class="transfer-list-item" data-id="<%= classItem._id %>">
                                                     <%= classItem.name %>
-                                                </label>
-                                            </div>
+                                                </div>
+                                            <% } %>
+                                        <% }); %>
+                                    <% } else { %>
+                                        <div class="alert alert-warning mb-0">
+                                            <i class="fas fa-exclamation-triangle mr-2"></i> No training classes are available.
                                         </div>
-                                    <% }); %>
+                                    <% } %>
                                 </div>
-                            <% } else { %>
-                                <div class="alert alert-warning mb-0">
-                                    No training classes are available. <a href="/training/manage-classes">Create some training classes</a> first.
+                            </div>
+                            <div class="transfer-list-controls">
+                                <button type="button" class="btn btn-outline-primary" id="addClass" title="Add selected classes">
+                                    <i class="fas fa-arrow-right"></i>
+                                </button>
+                                <button type="button" class="btn btn-outline-primary" id="removeClass" title="Remove selected classes">
+                                    <i class="fas fa-arrow-left"></i>
+                                </button>
+                            </div>
+                            <div class="transfer-list-column">
+                                <div class="transfer-list-header">Selected Classes</div>
+                                <div class="transfer-list-items" id="selectedClasses">
+                                    <% if (qualification.requiredClasses && qualification.requiredClasses.length > 0) { %>
+                                        <% qualification.requiredClasses.forEach(classItem => { %>
+                                            <div class="transfer-list-item" data-id="<%= classItem._id %>">
+                                                <%= classItem.name %>
+                                            </div>
+                                        <% }); %>
+                                    <% } %>
                                 </div>
-                            <% } %>
+                            </div>
                         </div>
-                    </div>
-                    <div class="form-group">
-                        <label for="status">Status</label>
-                        <select class="form-control" id="status" name="isActive">
-                            <option value="true" <% if (qualification.isActive) { %>selected<% } %>>Active</option>
-                            <option value="false" <% if (!qualification.isActive) { %>selected<% } %>>Inactive</option>
-                        </select>
+                        <input type="hidden" name="requiredClasses" id="requiredClasses">
+                        <small class="form-text text-muted">Order matters - list classes in the order they should be completed.</small>
                     </div>
                     <div class="form-group text-right">
-                        <a href="/qualifications/manage" class="btn btn-secondary mr-2">Cancel</a>
-                        <button type="submit" class="btn btn-primary">Save Changes</button>
+                        <a href="/qualifications/manage" class="btn btn-secondary mr-2">
+                            <i class="fas fa-times mr-1"></i> Cancel
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save mr-1"></i> Update Qualification
+                        </button>
                     </div>
                 </form>
             </div>
         </div>
     </div>
-
+    
     <%- include('./partials/footer') %>
-    <script src="/js/jquery.min.js"></script>
-    <script src="/js/bootstrap.bundle.min.js"></script>
-    <script src="https://kit.fontawesome.com/a076d05399.js"></script>
+    <%- include('./partials/scripts') %>
+    
+    <script>
+        $(document).ready(function() {
+            // Initialize Sortable for both lists
+            const availableClasses = new Sortable(document.getElementById('availableClasses'), {
+                group: 'shared',
+                animation: 150,
+                ghostClass: 'sortable-ghost',
+                dragClass: 'sortable-drag',
+                onEnd: function() {
+                    updateRequiredClassesInput();
+                }
+            });
+
+            const selectedClasses = new Sortable(document.getElementById('selectedClasses'), {
+                group: 'shared',
+                animation: 150,
+                ghostClass: 'sortable-ghost',
+                dragClass: 'sortable-drag',
+                onEnd: function() {
+                    updateRequiredClassesInput();
+                }
+            });
+
+            // Add class to selected
+            $('#addClass').on('click', function() {
+                const selectedItems = $('#availableClasses .transfer-list-item.selected');
+                if (selectedItems.length > 0) {
+                    selectedItems.appendTo('#selectedClasses');
+                    updateRequiredClassesInput();
+                }
+            });
+
+            // Remove class from selected
+            $('#removeClass').on('click', function() {
+                const selectedItems = $('#selectedClasses .transfer-list-item.selected');
+                if (selectedItems.length > 0) {
+                    selectedItems.appendTo('#availableClasses');
+                    updateRequiredClassesInput();
+                }
+            });
+
+            // Toggle selection on click
+            $(document).on('click', '.transfer-list-item', function(e) {
+                if (!$(e.target).is('button, a, input')) {
+                    $(this).toggleClass('selected');
+                    updateButtonStates();
+                }
+            });
+
+            // Update button states based on selection
+            function updateButtonStates() {
+                const hasSelectedAvailable = $('#availableClasses .transfer-list-item.selected').length > 0;
+                const hasSelectedSelected = $('#selectedClasses .transfer-list-item.selected').length > 0;
+                
+                $('#addClass').prop('disabled', !hasSelectedAvailable);
+                $('#removeClass').prop('disabled', !hasSelectedSelected);
+            }
+
+            // Update the hidden input with selected class IDs
+            function updateRequiredClassesInput() {
+                const selectedIds = [];
+                $('#selectedClasses .transfer-list-item').each(function() {
+                    selectedIds.push($(this).data('id'));
+                });
+                // Format the IDs as a comma-separated string
+                $('#requiredClasses').val(selectedIds.join(','));
+                updateButtonStates();
+            }
+
+            // Initialize the form
+            updateButtonStates();
+            updateRequiredClassesInput();
+        });
+    </script>
 </body>
 </html> 

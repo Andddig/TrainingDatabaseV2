@@ -112,9 +112,16 @@
                                                 <% qual.missingClasses.forEach(classItem => { %>
                                                     <li>
                                                         <span class="class-name"><%= classItem.name %></span>
-                                                        <a href="/training/submit?class=<%= classItem._id %>" class="btn btn-sm btn-outline-primary">
-                                                            <i class="fas fa-upload"></i> Submit Certificate
-                                                        </a>
+                                                        <div class="btn-group">
+                                                            <a href="/training/submit?class=<%= classItem._id %>" class="btn btn-sm btn-primary text-white">
+                                                                <i class="fas fa-upload"></i> Submit Certificate
+                                                            </a>
+                                                            <button type="button" class="btn btn-sm btn-info text-white find-class-btn" 
+                                                                    data-toggle="modal" data-target="#findClassModal" 
+                                                                    data-class-name="<%= classItem.name %>">
+                                                                <i class="fas fa-search"></i> Find Class
+                                                            </button>
+                                                        </div>
                                                     </li>
                                                 <% }); %>
                                             </ul>
@@ -132,52 +139,203 @@
         
         <% if (availableQualifications && availableQualifications.length > 0) { %>
             <div class="card mt-4">
-                <div class="card-header bg-secondary text-white">
+                <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
                     <h5 class="mb-0"><i class="fas fa-list-alt mr-2"></i>Available Qualifications</h5>
+                    <div class="input-group w-25">
+                        <input type="text" id="qualificationSearch" class="form-control form-control-sm" placeholder="Search qualifications...">
+                        <div class="input-group-append">
+                            <span class="input-group-text"><i class="fas fa-search"></i></span>
+                        </div>
+                    </div>
                 </div>
                 <div class="card-body">
-                    <div class="table-responsive">
-                        <table class="table table-hover qualification-table">
-                            <thead>
-                                <tr>
-                                    <th>Qualification</th>
-                                    <th>Description</th>
-                                    <th>Required Classes</th>
-                                    <th>Action</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <% availableQualifications.forEach(qual => { %>
-                                    <tr>
-                                        <td><strong><%= qual.name %></strong></td>
-                                        <td><%= qual.description %></td>
-                                        <td>
-                                            <button class="btn btn-sm btn-outline-info" type="button" data-toggle="collapse" data-target="#classes<%= qual._id %>">
-                                                <i class="fas fa-clipboard-list mr-1"></i> Show <%= qual.requiredClasses.length %> classes
-                                            </button>
-                                            <div class="collapse mt-2" id="classes<%= qual._id %>">
-                                                <ul class="list-group">
-                                                    <% qual.requiredClasses.forEach(classItem => { %>
-                                                        <li class="list-group-item py-2"><i class="fas fa-graduation-cap text-secondary mr-2"></i><%= classItem.name %></li>
-                                                    <% }); %>
-                                                </ul>
+                    <div class="row" id="qualificationGrid">
+                        <% availableQualifications.forEach(qual => { %>
+                            <div class="col-md-6 mb-4 qualification-item">
+                                <div class="card h-100 qualification-card">
+                                    <div class="card-header bg-light">
+                                        <h5 class="mb-0 d-flex justify-content-between align-items-center">
+                                            <span><%= qual.name %></span>
+                                            <span class="badge badge-info">
+                                                <%= qual.requiredClasses.length %> Classes Required
+                                            </span>
+                                        </h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="qualification-details">
+                                            <p class="qualification-description"><%= qual.description %></p>
+                                            
+                                            <div class="qualification-stats mb-3">
+                                                <div class="row">
+                                                    <div class="col-6">
+                                                        <small class="text-muted d-block">Estimated Total Hours</small>
+                                                        <strong>
+                                                            <i class="fas fa-clock text-info mr-1"></i>
+                                                            <%= qual.requiredClasses.reduce((acc, cls) => acc + (cls.estimatedHours || 0), 0) %> hours
+                                                        </strong>
+                                                    </div>
+                                                    <div class="col-6">
+                                                        <small class="text-muted d-block">Typical Completion Time</small>
+                                                        <strong>
+                                                            <i class="fas fa-calendar-alt text-info mr-1"></i>
+                                                            <%= Math.ceil(qual.requiredClasses.length / 2) %> months
+                                                        </strong>
+                                                    </div>
+                                                </div>
                                             </div>
-                                        </td>
-                                        <td>
-                                            <a href="/qualifications/start/<%= qual._id %>" class="btn btn-sm btn-success">
-                                                <i class="fas fa-play-circle mr-1"></i> Start This Qualification
+
+                                            <div class="required-classes mb-3">
+                                                <h6 class="mb-2"><i class="fas fa-graduation-cap text-secondary mr-2"></i>Required Classes:</h6>
+                                                <div class="class-list-container" style="max-height: 200px; overflow-y: auto;">
+                                                    <ul class="list-group list-group-flush">
+                                                        <% qual.requiredClasses.forEach(classItem => { %>
+                                                            <li class="list-group-item py-2 px-3">
+                                                                <div class="d-flex justify-content-between align-items-center">
+                                                                    <div>
+                                                                        <strong><%= classItem.name %></strong>
+                                                                        <% if (classItem.estimatedHours) { %>
+                                                                            <small class="text-muted ml-2">
+                                                                                (<%= classItem.estimatedHours %> hours)
+                                                                            </small>
+                                                                        <% } %>
+                                                                    </div>
+                                                                    <button class="btn btn-sm btn-outline-info find-class-btn"
+                                                                            data-toggle="modal" 
+                                                                            data-target="#findClassModal"
+                                                                            data-class-name="<%= classItem.name %>">
+                                                                        <i class="fas fa-search mr-1"></i>Find
+                                                                    </button>
+                                                                </div>
+                                                            </li>
+                                                        <% }); %>
+                                                    </ul>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="text-center mt-3">
+                                            <a href="/qualifications/start/<%= qual._id %>" class="btn btn-success btn-lg">
+                                                <i class="fas fa-play-circle mr-2"></i>Start This Qualification
                                             </a>
-                                        </td>
-                                    </tr>
-                                <% }); %>
-                            </tbody>
-                        </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        <% }); %>
                     </div>
                 </div>
             </div>
         <% } %>
     </div>
 
+    <!-- Find Class Modal -->
+    <div class="modal fade" id="findClassModal" tabindex="-1" role="dialog" aria-labelledby="findClassModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="findClassModalLabel">Available Classes</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Course ID</th>
+                                    <th>Title</th>
+                                    <th>Location</th>
+                                    <th>Start Date</th>
+                                    <th>End Date</th>
+                                    <th>Hours</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="matchingClassesTable">
+                                <!-- Matching classes will be populated here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <%- include('./partials/footer') %>
+    
+    <!-- Scripts -->
+    <script src="/js/jquery.min.js"></script>
+    <script src="/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Pass MFRI classes data to JavaScript
+        const mfriClasses = <%- JSON.stringify(mfriClasses) %>;
+        
+        $(document).ready(function() {
+            $('.find-class-btn').on('click', function() {
+                const className = $(this).data('class-name');
+                $('#findClassModalLabel').text(`Available Classes for: ${className}`);
+                
+                // Clear previous results
+                $('#matchingClassesTable').empty();
+                
+                // Find matching MFRI classes
+                const matchingClasses = mfriClasses.filter(cls => 
+                    cls.title.toLowerCase().includes(className.toLowerCase())
+                );
+                
+                if (matchingClasses.length === 0) {
+                    $('#matchingClassesTable').html(`
+                        <tr>
+                            <td colspan="7" class="text-center">No matching classes found</td>
+                        </tr>
+                    `);
+                } else {
+                    matchingClasses.forEach(cls => {
+                        $('#matchingClassesTable').append(`
+                            <tr>
+                                <td>${cls.courseId}</td>
+                                <td>${cls.title}</td>
+                                <td>${cls.location}</td>
+                                <td>${new Date(cls.startDate).toLocaleDateString()}</td>
+                                <td>${new Date(cls.endDate).toLocaleDateString()}</td>
+                                <td>${cls.instructionalHours}</td>
+                                <td>
+                                    <a href="/mfri/class/${cls.courseId}" class="btn btn-sm btn-info text-white">View Details</a>
+                                </td>
+                            </tr>
+                        `);
+                    });
+                }
+                
+                // Show the modal
+                $('#findClassModal').modal('show');
+            });
+
+            // Only add search functionality if the search input exists
+            const searchInput = document.getElementById('qualificationSearch');
+            if (searchInput) {
+                searchInput.addEventListener('input', function(e) {
+                    const searchTerm = e.target.value.toLowerCase();
+                    const qualifications = document.querySelectorAll('.qualification-item');
+                    
+                    qualifications.forEach(qual => {
+                        const title = qual.querySelector('.card-header h5').textContent.toLowerCase();
+                        const description = qual.querySelector('.qualification-description').textContent.toLowerCase();
+                        const classes = Array.from(qual.querySelectorAll('.class-list-container strong'))
+                            .map(el => el.textContent.toLowerCase());
+                        
+                        const matches = title.includes(searchTerm) || 
+                                      description.includes(searchTerm) ||
+                                      classes.some(c => c.includes(searchTerm));
+                        
+                        qual.style.display = matches ? '' : 'none';
+                    });
+                });
+            }
+        });
+    </script>
 </body>
 </html> 

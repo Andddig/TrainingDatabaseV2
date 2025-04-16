@@ -14,6 +14,8 @@ const cookieParser = require('cookie-parser');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+const version = '0.9.0';
+
 // MongoDB connection with retry logic
 const connectWithRetry = () => {
   console.log('MongoDB connection attempt...');
@@ -43,6 +45,9 @@ const User = mongoose.model('User', new mongoose.Schema({
   createdAt: { type: Date, default: Date.now },
   roles: { type: [String], default: ['Student'] }
 }));
+
+// Import UserQualification model
+const UserQualification = require('./models/UserQualification');
 
 // Load route modules
 const trainingRoutes = require('./routes/training');
@@ -179,7 +184,7 @@ const hasRole = (requiredRoles) => {
 
 // Routes
 app.get('/', (req, res) => {
-  res.render('index', { user: req.user });
+  res.render('index', { user: req.user, version });
 });
 
 app.get('/login', (req, res) => {
@@ -200,14 +205,32 @@ app.get('/auth/microsoft/callback',
   }
 );
 
-app.get('/dashboard', isAuthenticated, (req, res) => {
+app.get('/dashboard', isAuthenticated, async (req, res) => {
   // Redirect based on user role
   if (req.user.roles.includes('Approver')) {
     res.redirect('/training/approver/dashboard');
   } else if (req.user.roles.includes('Training Officer')) {
     res.redirect('/training/manage-classes');
   } else {
-    res.render('dashboard', { user: req.user });
+    try {
+      // Get in-progress qualifications for the user
+      const inProgressQualifications = await UserQualification.find({
+        user: req.user._id,
+        isComplete: false
+      })
+      .populate('qualification')
+      .populate('completedClasses.class')
+      .populate('missingClasses')
+      .sort('-lastUpdated');
+
+      res.render('dashboard', { 
+        user: req.user,
+        inProgressQualifications
+      });
+    } catch (err) {
+      console.error('Error loading dashboard:', err);
+      res.status(500).render('error', { message: 'Error loading dashboard' });
+    }
   }
 });
 

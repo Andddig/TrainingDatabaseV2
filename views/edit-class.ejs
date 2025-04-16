@@ -6,6 +6,9 @@
   <title>Edit Training Class - Training Database</title>
   <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
   <link rel="stylesheet" href="/css/styles.css">
+  <script src="/js/jquery.min.js"></script>
+  <script src="/js/bootstrap.bundle.min.js"></script>
+  <script src="/js/sortable.min.js"></script>
 </head>
 <body>
   <%- include('./partials/header', { user }) %>
@@ -53,21 +56,48 @@
           
           <div class="form-group">
             <label>Prerequisites (Classes that must be completed first)</label>
-            <div class="prerequisites-container">
-              <% if (otherClasses && otherClasses.length > 0) { %>
-                <select name="prerequisites" multiple class="form-control" id="prerequisites">
-                  <% otherClasses.forEach(classItem => { %>
-                    <option value="<%= classItem._id %>" 
-                      <% if (trainingClass.prerequisites && trainingClass.prerequisites.some(p => p._id.toString() === classItem._id.toString())) { %>selected<% } %>>
-                      <%= classItem.name %>
-                    </option>
-                  <% }); %>
-                </select>
-                <small class="form-text text-muted">Hold Ctrl/Cmd to select multiple prerequisites. Order matters - list them in the order they should be completed.</small>
-              <% } else { %>
-                <p class="text-muted">No other classes available to set as prerequisites.</p>
-              <% } %>
+            <div class="transfer-list">
+              <div class="transfer-list-column">
+                <div class="transfer-list-header">Available Classes</div>
+                <div class="transfer-list-items" id="availablePrerequisites">
+                  <% if (otherClasses && otherClasses.length > 0) { %>
+                    <% otherClasses.forEach(classItem => { %>
+                      <% if (!trainingClass.prerequisites || !trainingClass.prerequisites.some(p => p._id.toString() === classItem._id.toString())) { %>
+                        <div class="transfer-list-item" data-id="<%= classItem._id %>">
+                          <%= classItem.name %>
+                        </div>
+                      <% } %>
+                    <% }); %>
+                  <% } else { %>
+                    <div class="alert alert-warning mb-0">
+                      <i class="fas fa-exclamation-triangle mr-2"></i> No other classes available.
+                    </div>
+                  <% } %>
+                </div>
+              </div>
+              <div class="transfer-list-controls">
+                <button type="button" class="btn btn-outline-primary" id="addPrerequisite" title="Add selected prerequisites">
+                  <i class="fas fa-arrow-right"></i>
+                </button>
+                <button type="button" class="btn btn-outline-primary" id="removePrerequisite" title="Remove selected prerequisites">
+                  <i class="fas fa-arrow-left"></i>
+                </button>
+              </div>
+              <div class="transfer-list-column">
+                <div class="transfer-list-header">Selected Prerequisites</div>
+                <div class="transfer-list-items" id="selectedPrerequisites">
+                  <% if (trainingClass.prerequisites && trainingClass.prerequisites.length > 0) { %>
+                    <% trainingClass.prerequisites.forEach(prerequisite => { %>
+                      <div class="transfer-list-item" data-id="<%= prerequisite._id %>">
+                        <%= prerequisite.name %>
+                      </div>
+                    <% }); %>
+                  <% } %>
+                </div>
+              </div>
             </div>
+            <input type="hidden" name="prerequisites" id="prerequisites">
+            <small class="form-text text-muted">Order matters - list prerequisites in the order they should be completed.</small>
           </div>
           
           <div class="form-group text-right">
@@ -85,5 +115,79 @@
   
   <%- include('./partials/footer') %>
   <%- include('./partials/scripts') %>
+  
+  <script>
+    $(document).ready(function() {
+      // Initialize Sortable for both lists
+      const availablePrerequisites = new Sortable(document.getElementById('availablePrerequisites'), {
+        group: 'shared',
+        animation: 150,
+        ghostClass: 'sortable-ghost',
+        dragClass: 'sortable-drag',
+        onEnd: function() {
+          updatePrerequisitesInput();
+        }
+      });
+
+      const selectedPrerequisites = new Sortable(document.getElementById('selectedPrerequisites'), {
+        group: 'shared',
+        animation: 150,
+        ghostClass: 'sortable-ghost',
+        dragClass: 'sortable-drag',
+        onEnd: function() {
+          updatePrerequisitesInput();
+        }
+      });
+
+      // Add prerequisite to selected
+      $('#addPrerequisite').on('click', function() {
+        const selectedItems = $('#availablePrerequisites .transfer-list-item.selected');
+        if (selectedItems.length > 0) {
+          selectedItems.appendTo('#selectedPrerequisites');
+          updatePrerequisitesInput();
+        }
+      });
+
+      // Remove prerequisite from selected
+      $('#removePrerequisite').on('click', function() {
+        const selectedItems = $('#selectedPrerequisites .transfer-list-item.selected');
+        if (selectedItems.length > 0) {
+          selectedItems.appendTo('#availablePrerequisites');
+          updatePrerequisitesInput();
+        }
+      });
+
+      // Toggle selection on click
+      $(document).on('click', '.transfer-list-item', function(e) {
+        if (!$(e.target).is('button, a, input')) {
+          $(this).toggleClass('selected');
+          updateButtonStates();
+        }
+      });
+
+      // Update button states based on selection
+      function updateButtonStates() {
+        const hasSelectedAvailable = $('#availablePrerequisites .transfer-list-item.selected').length > 0;
+        const hasSelectedSelected = $('#selectedPrerequisites .transfer-list-item.selected').length > 0;
+        
+        $('#addPrerequisite').prop('disabled', !hasSelectedAvailable);
+        $('#removePrerequisite').prop('disabled', !hasSelectedSelected);
+      }
+
+      // Update the hidden input with selected prerequisite IDs
+      function updatePrerequisitesInput() {
+        const selectedIds = [];
+        $('#selectedPrerequisites .transfer-list-item').each(function() {
+          selectedIds.push($(this).data('id'));
+        });
+        $('#prerequisites').val(selectedIds.join(','));
+        updateButtonStates();
+      }
+
+      // Initialize the form
+      updateButtonStates();
+      updatePrerequisitesInput();
+    });
+  </script>
 </body>
 </html> 

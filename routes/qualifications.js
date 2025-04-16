@@ -8,6 +8,7 @@ const UserQualification = require('../models/UserQualification');
 const TrainingClass = require('../models/TrainingClass');
 const TrainingSubmission = require('../models/TrainingSubmission');
 const User = mongoose.model('User');
+const MfriClass = require('../models/mfriClass');
 
 // Authentication middleware (copied from training.js)
 const isAuthenticated = (req, res, next) => {
@@ -321,12 +322,18 @@ router.get('/my', isAuthenticated, async (req, res) => {
       _id: { $nin: userQualificationIds },
       isActive: true
     }).populate('requiredClasses');
+
+    // Get MFRI classes
+    const mfriClasses = await MfriClass.find({ 
+      startDate: { $gte: new Date() } 
+    }).sort({ startDate: 1 });
     
     res.render('my-qualifications', { 
       user: req.user, 
       completedQualifications,
       inProgressQualifications,
       availableQualifications,
+      mfriClasses,
       error: req.query.error,
       success: req.query.success
     });
@@ -478,6 +485,48 @@ async function updateUserQualificationsForChangedDefinition(qualificationId) {
     console.error('Error updating user qualifications for changed definition:', err);
   }
 }
+
+// Function to import MFRI classes into training classes
+async function importMfriClasses() {
+    try {
+        const mfriClasses = await MfriClass.find({});
+        const trainingClass = mongoose.model('TrainingClass');
+        
+        for (const mfriClass of mfriClasses) {
+            // Check if class already exists
+            const existingClass = await trainingClass.findOne({ 
+                name: mfriClass.title 
+            });
+            
+            if (!existingClass) {
+                // Create new training class
+                const newClass = new trainingClass({
+                    name: mfriClass.title,
+                    hoursValue: mfriClass.instructionalHours,
+                    isActive: true
+                });
+                
+                await newClass.save();
+                console.log(`Imported class: ${mfriClass.title}`);
+            }
+        }
+        
+        console.log('MFRI class import completed');
+    } catch (err) {
+        console.error('Error importing MFRI classes:', err);
+    }
+}
+
+// Add route to trigger import
+router.get('/import-mfri-classes', isAuthenticated, isTrainingOfficer, async (req, res) => {
+    try {
+        await importMfriClasses();
+        res.redirect('/qualifications/manage?success=MFRI classes imported successfully');
+    } catch (err) {
+        console.error('Error importing MFRI classes:', err);
+        res.redirect('/qualifications/manage?error=Error importing MFRI classes');
+    }
+});
 
 // Export the router and utility functions
 module.exports = {

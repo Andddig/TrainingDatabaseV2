@@ -1,52 +1,92 @@
 <%- include('partials/header') %>
 
 <div class="container mt-4">
-    <div class="row mb-4">
-        <div class="col">
-            <h1>Find a Class</h1>
-            <div class="btn-group">
-                <a href="/mfri/find-class?region=North Central" class="btn btn-outline-primary <%= region === 'North Central' ? 'active' : '' %>">North Central</a>
-                <!-- Add more regions as they become available -->
-            </div>
+    <h2>Find MFRI Classes</h2>
+    
+    <!-- Search Form -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="GET" action="/mfri/find-class" class="row g-3">
+                <div class="col-md-3">
+                    <label for="courseType" class="form-label">Course Type</label>
+                    <select class="form-select" id="courseType" name="courseType">
+                        <option value="">All Types</option>
+                        <% courseTypes.forEach(type => { %>
+                            <option value="<%= type %>" <%= searchParams.courseType === type ? 'selected' : '' %>>
+                                <%= type %>
+                            </option>
+                        <% }); %>
+                    </select>
+                </div>
+                
+                <div class="col-md-3">
+                    <label for="location" class="form-label">Location</label>
+                    <select class="form-select" id="location" name="location">
+                        <option value="">All Locations</option>
+                        <% locations.forEach(loc => { %>
+                            <option value="<%= loc %>" <%= searchParams.location === loc ? 'selected' : '' %>>
+                                <%= loc %>
+                            </option>
+                        <% }); %>
+                    </select>
+                </div>
+                
+                <div class="col-md-3">
+                    <label for="title" class="form-label">Class Name</label>
+                    <input type="text" class="form-control" id="title" name="title" 
+                           value="<%= searchParams.title || '' %>" placeholder="Search by class name">
+                </div>
+                
+                <div class="col-md-3">
+                    <label for="startDate" class="form-label">Start Date</label>
+                    <input type="date" class="form-control" id="startDate" name="startDate" 
+                           value="<%= searchParams.startDate || '' %>">
+                </div>
+                
+                <div class="col-md-3">
+                    <label for="endDate" class="form-label">End Date</label>
+                    <input type="date" class="form-control" id="endDate" name="endDate" 
+                           value="<%= searchParams.endDate || '' %>">
+                </div>
+                
+                <div class="col-12">
+                    <button type="submit" class="btn btn-primary">Search</button>
+                    <a href="/mfri/find-class" class="btn btn-secondary">Clear Filters</a>
+                </div>
+            </form>
         </div>
     </div>
-
-    <div class="row">
-        <% if (classes.length === 0) { %>
-            <div class="col">
-                <div class="alert alert-info">
-                    No classes found for this region. Please check back later.
-                </div>
-            </div>
-        <% } else { %>
-            <% classes.forEach(course => { %>
-                <div class="col-md-6 col-lg-4 mb-4">
-                    <div class="card h-100">
-                        <div class="card-header">
-                            <h5 class="card-title mb-0"><%= course.title %></h5>
-                            <small class="text-muted">Course ID: <%= course.courseId %></small>
-                        </div>
-                        <div class="card-body">
-                            <p class="card-text">
-                                <strong>Dates:</strong> <%= course.startDate.toLocaleDateString() %> - <%= course.endDate.toLocaleDateString() %><br>
-                                <strong>Location:</strong> <%= course.location %><br>
-                                <strong>Hours:</strong> <%= course.instructionalHours %><br>
-                                <strong>Registration:</strong> <%= course.registrationOpen.toLocaleDateString() %> - <%= course.registrationClose.toLocaleDateString() %>
-                            </p>
-                            <h6>Class Times:</h6>
-                            <ul class="list-unstyled">
-                                <% course.classTimes.forEach(time => { %>
-                                    <li><%= time.day %>: <%= time.startTime %> - <%= time.endTime %></li>
-                                <% }); %>
-                            </ul>
-                        </div>
-                        <div class="card-footer">
-                            <a href="<%= course.registrationUrl %>" class="btn btn-primary" target="_blank">Register Now</a>
-                        </div>
-                    </div>
-                </div>
-            <% }); %>
-        <% } %>
+    
+    <!-- Classes Table -->
+    <div class="table-responsive">
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>Course ID</th>
+                    <th>Title</th>
+                    <th>Location</th>
+                    <th>Start Date</th>
+                    <th>End Date</th>
+                    <th>Hours</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <% classes.forEach(cls => { %>
+                    <tr>
+                        <td><%= cls.courseId %></td>
+                        <td><%= cls.title %></td>
+                        <td><%= cls.location %></td>
+                        <td><%= new Date(cls.startDate).toLocaleDateString() %></td>
+                        <td><%= new Date(cls.endDate).toLocaleDateString() %></td>
+                        <td><%= cls.instructionalHours %></td>
+                        <td>
+                            <a href="/mfri/class/<%= cls.courseId %>" class="btn btn-sm btn-info">View Details</a>
+                        </td>
+                    </tr>
+                <% }); %>
+            </tbody>
+        </table>
     </div>
 </div>
 

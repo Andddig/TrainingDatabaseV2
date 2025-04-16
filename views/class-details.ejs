@@ -1,0 +1,64 @@
+<%- include('partials/header') %>
+
+<div class="container mt-4">
+    <div class="card">
+        <div class="card-header">
+            <h2 class="mb-0"><%= classData.title %></h2>
+            <small class="text-muted">Course ID: <%= classData.courseId %></small>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <h5>Course Details</h5>
+                    <ul class="list-unstyled">
+                        <li><strong>Location:</strong> <%= classData.location %></li>
+                        <li><strong>Instructional Hours:</strong> <%= classData.instructionalHours %></li>
+                        <li><strong>Region:</strong> <%= classData.region %></li>
+                    </ul>
+                </div>
+                <div class="col-md-6">
+                    <h5>Dates & Times</h5>
+                    <ul class="list-unstyled">
+                        <li><strong>Start Date:</strong> <%= new Date(classData.startDate).toLocaleDateString() %></li>
+                        <li><strong>End Date:</strong> <%= new Date(classData.endDate).toLocaleDateString() %></li>
+                        <li><strong>Registration Open:</strong> <%= new Date(classData.registrationOpen).toLocaleDateString() %></li>
+                        <li><strong>Registration Close:</strong> <%= new Date(classData.registrationClose).toLocaleDateString() %></li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="row mt-4">
+                <div class="col-12">
+                    <h5>Class Schedule</h5>
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Day</th>
+                                <th>Start Time</th>
+                                <th>End Time</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <% classData.classTimes.forEach(time => { %>
+                                <tr>
+                                    <td><%= time.day %></td>
+                                    <td><%= time.startTime %></td>
+                                    <td><%= time.endTime %></td>
+                                </tr>
+                            <% }); %>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="row mt-4">
+                <div class="col-12">
+                    <a href="<%= classData.registrationUrl %>" target="_blank" class="btn btn-primary">Register for this Class</a>
+                    <a href="/mfri/find-class" class="btn btn-secondary">Back to Class List</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<%- include('partials/footer') %> 
