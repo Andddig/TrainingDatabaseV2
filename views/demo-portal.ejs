@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Demo Portal - Training Database</title>
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+  <link rel="stylesheet" href="/css/styles.css">
+  <style>
+    .demo-button {
+      height: 200px;
+      font-size: 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 20px 0;
+      transition: transform 0.3s ease;
+    }
+    .demo-button:hover {
+      transform: scale(1.05);
+    }
+  </style>
+</head>
+<body>
+  <%- include('./partials/header', { user }) %>
+  
+  <div class="container mt-4">
+    <div class="row mb-4">
+      <div class="col">
+        <h1>Demo Portal</h1>
+        <p>Explore new features and prototypes</p>
+      </div>
+    </div>
+    
+    <div class="row">
+      <div class="col-md-6">
+        <a href="/demo/attendant-packet" class="btn btn-primary btn-block demo-button">
+          <i class="fas fa-clipboard-list mr-2"></i> Attendant Packet
+        </a>
+      </div>
+    </div>
+  </div>
+  
+  <%- include('./partials/footer') %>
+  <%- include('./partials/scripts') %>
+</body>
+</html> 

@@ -48,6 +48,8 @@ const User = mongoose.model('User', new mongoose.Schema({
 
 // Import UserQualification model
 const UserQualification = require('./models/UserQualification');
+const AttendantProgress = require('./models/AttendantProgress');
+const Qualification = require('./models/Qualification');
 
 // Load route modules
 const trainingRoutes = require('./routes/training');
@@ -59,9 +61,10 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      imgSrc: ["'self'", "data:"]
+      scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://stackpath.bootstrapcdn.com", "https://cdnjs.cloudflare.com"],
+      imgSrc: ["'self'", "data:"],
+      connectSrc: ["'self'"]
     }
   }
 }));
@@ -246,6 +249,155 @@ app.get('/admin', isAuthenticated, isAdmin, async (req, res) => {
   } catch (err) {
     console.error('Error fetching users:', err);
     res.status(500).render('error', { message: 'Error loading admin dashboard' });
+  }
+});
+
+// Demo Portal Routes
+app.get('/demo-portal', isAuthenticated, (req, res) => {
+  res.render('demo-portal', { user: req.user });
+});
+
+app.get('/demo/attendant-packet', isAuthenticated, async (req, res) => {
+  try {
+    // Get user's progress
+    const attendantProgress = await AttendantProgress.findOne({ user: req.user._id });
+    res.render('attendant-packet', { 
+      user: req.user,
+      calls: attendantProgress ? attendantProgress.calls : null,
+      completedCalls: attendantProgress ? attendantProgress.completedCalls : 0
+    });
+  } catch (err) {
+    console.error('Error loading attendant packet:', err);
+    res.status(500).render('error', { message: 'Error loading attendant packet' });
+  }
+});
+
+// Save attendant progress
+app.post('/demo/save-attendant-progress', isAuthenticated, async (req, res) => {
+  try {
+    const { callNumber, incident, type, disposition } = req.body;
+    
+    // Validate call number
+    if (!callNumber || isNaN(callNumber)) {
+      return res.status(400).json({ success: false, error: 'Invalid call number' });
+    }
+    
+    // Find or create progress document
+    let progress = await AttendantProgress.findOne({ user: req.user._id });
+    if (!progress) {
+      progress = new AttendantProgress({
+        user: req.user._id,
+        calls: new Map(),
+        completedCalls: 0
+      });
+    }
+    
+    // Convert calls Map to object if it's not already
+    if (!(progress.calls instanceof Map)) {
+      progress.calls = new Map(Object.entries(progress.calls || {}));
+    }
+    
+    // Update call data
+    progress.calls.set(callNumber.toString(), {
+      incident,
+      type,
+      disposition,
+      completed: true
+    });
+    
+    // Update completed calls count
+    progress.completedCalls = Array.from(progress.calls.values()).filter(call => call.completed).length;
+    
+    await progress.save();
+    
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error saving attendant progress:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Award attendant qualification
+app.post('/demo/award-attendant-qualification', isAuthenticated, async (req, res) => {
+  try {
+    // Check if user has completed all calls
+    const progress = await AttendantProgress.findOne({ user: req.user._id });
+    if (!progress || progress.completedCalls < 12) {
+      return res.status(400).json({ success: false, error: 'Not all calls are completed' });
+    }
+
+    // Find or create the attendant qualification
+    let qualification = await Qualification.findOne({ name: 'Attendant' });
+    if (!qualification) {
+      qualification = new Qualification({
+        name: 'Attendant',
+        description: 'Completed 12 calls as an attendant',
+        requiredClasses: [],
+        createdBy: req.user._id
+      });
+      await qualification.save();
+    }
+
+    // Create or update user qualification
+    let userQualification = await UserQualification.findOne({
+      user: req.user._id,
+      qualification: qualification._id
+    });
+
+    if (!userQualification) {
+      userQualification = new UserQualification({
+        user: req.user._id,
+        qualification: qualification._id,
+        isComplete: true,
+        earnedDate: new Date(),
+        lastUpdated: new Date()
+      });
+    } else {
+      userQualification.isComplete = true;
+      userQualification.earnedDate = new Date();
+      userQualification.lastUpdated = new Date();
+    }
+
+    await userQualification.save();
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error awarding attendant qualification:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Admin route to remove attendant qualification
+app.post('/demo/remove-attendant-qualification', isAuthenticated, async (req, res) => {
+  try {
+    // Check if user is admin
+    if (!req.user.isAdmin) {
+      return res.status(403).json({ success: false, error: 'Unauthorized' });
+    }
+
+    const { userId } = req.body;
+    if (!userId) {
+      return res.status(400).json({ success: false, error: 'User ID is required' });
+    }
+
+    // Find the attendant qualification
+    const qualification = await Qualification.findOne({ name: 'Attendant' });
+    if (!qualification) {
+      return res.status(404).json({ success: false, error: 'Attendant qualification not found' });
+    }
+
+    // Remove user qualification
+    await UserQualification.deleteOne({
+      user: userId,
+      qualification: qualification._id
+    });
+
+    // Reset attendant progress
+    await AttendantProgress.deleteOne({ user: userId });
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error removing attendant qualification:', err);
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 

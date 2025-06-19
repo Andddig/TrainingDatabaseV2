@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Attendant Packet - Training Database</title>
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+  <link rel="stylesheet" href="/css/styles.css">
+  <style>
+    .call-box {
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 15px;
+      margin-bottom: 15px;
+      transition: all 0.3s ease;
+      position: relative;
+      width: 100%;
+    }
+    .call-box.completed {
+      background-color: #e8f5e9;
+      border-color: #4caf50;
+    }
+    .call-box.completed::after {
+      content: '✓';
+      position: absolute;
+      right: 10px;
+      top: 10px;
+      color: #4caf50;
+      font-size: 24px;
+      animation: checkmark 0.5s ease;
+    }
+    @keyframes checkmark {
+      0% { transform: scale(0); }
+      50% { transform: scale(1.2); }
+      100% { transform: scale(1); }
+    }
+    .progress {
+      height: 25px;
+      margin-bottom: 20px;
+    }
+    .form-row {
+      margin-bottom: 10px;
+    }
+    .completed-calls {
+      margin-top: 20px;
+    }
+    .invalid-feedback {
+      display: block;
+    }
+    .call-number {
+      font-size: 1.2rem;
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
+  </style>
+</head>
+<body>
+  <%- include('./partials/header', { user }) %>
+  
+  <div class="container mt-4">
+    <div class="row mb-4">
+      <div class="col">
+        <h1>Attendant Packet</h1>
+        <div class="progress">
+          <div class="progress-bar" role="progressbar" style="width: <%= (completedCalls || 0) * 8.33 %>%" id="progressBar">
+            <%= (completedCalls || 0) %>/12 Calls Completed
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="row">
+      <div class="col-12">
+        <div id="activeCalls">
+          <% for(let i = 1; i <= 12; i++) { %>
+            <div class="call-box <%= calls && calls[i] && calls[i].completed ? 'completed' : '' %>" id="call<%= i %>">
+              <div class="call-number">Call <%= i %></div>
+              <div class="row">
+                <div class="col-md-3">
+                  <div class="form-group">
+                    <label for="incident<%= i %>">Incident Number</label>
+                    <input type="text" class="form-control" id="incident<%= i %>" 
+                           name="incident<%= i %>"
+                           value="<%= calls && calls[i] ? calls[i].incident : '' %>"
+                           pattern="F-\d{2}-\d{6}" 
+                           placeholder="F-YY-######"
+                           required>
+                    <div class="invalid-feedback">Please enter a valid incident number (F-YY-######)</div>
+                  </div>
+                </div>
+                <div class="col-md-3">
+                  <div class="form-group">
+                    <label>Type</label>
+                    <select class="form-control" id="type<%= i %>" name="type<%= i %>">
+                      <option value="sick_person" <%= calls && calls[i] && calls[i].type === 'sick_person' ? 'selected' : '' %>>Sick Person</option>
+                      <option value="chest_pain" <%= calls && calls[i] && calls[i].type === 'chest_pain' ? 'selected' : '' %>>Chest Pain</option>
+                      <option value="cardiac_arrest" <%= calls && calls[i] && calls[i].type === 'cardiac_arrest' ? 'selected' : '' %>>Cardiac Arrest</option>
+                      <option value="overdose" <%= calls && calls[i] && calls[i].type === 'overdose' ? 'selected' : '' %>>Overdose</option>
+                      <option value="assist_patient" <%= calls && calls[i] && calls[i].type === 'assist_patient' ? 'selected' : '' %>>Assist Patient</option>
+                      <option value="mental_patient" <%= calls && calls[i] && calls[i].type === 'mental_patient' ? 'selected' : '' %>>Mental Patient</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="col-md-3">
+                  <div class="form-group">
+                    <label>Disposition</label>
+                    <div class="form-check">
+                      <input class="form-check-input" type="radio" name="disposition<%= i %>" id="transport<%= i %>" 
+                             value="transport" <%= !calls || !calls[i] || calls[i].disposition === 'transport' ? 'checked' : '' %>>
+                      <label class="form-check-label" for="transport<%= i %>">Transport</label>
+                    </div>
+                    <div class="form-check">
+                      <input class="form-check-input" type="radio" name="disposition<%= i %>" id="refusal<%= i %>" 
+                             value="refusal" <%= calls && calls[i] && calls[i].disposition === 'refusal' ? 'checked' : '' %>>
+                      <label class="form-check-label" for="refusal<%= i %>">Refusal</label>
+                    </div>
+                  </div>
+                </div>
+                <div class="col-md-3">
+                  <button class="btn btn-success complete-btn" data-call="<%= i %>" 
+                          style="margin-top: 25px;" 
+                          <%= calls && calls[i] && calls[i].completed ? 'disabled' : '' %>>
+                    <%= calls && calls[i] && calls[i].completed ? 'Completed' : 'Complete' %>
+                  </button>
+                </div>
+              </div>
+            </div>
+          <% } %>
+        </div>
+
+        <div class="completed-calls">
+          <div class="card">
+            <div class="card-header" id="completedCallsHeader">
+              <h5 class="mb-0">
+                <button class="btn btn-link" data-toggle="collapse" data-target="#completedCalls" aria-expanded="false" aria-controls="completedCalls">
+                  Completed Calls
+                </button>
+                <% if (user.isAdmin) { %>
+                  <button class="btn btn-danger float-right" id="resetQualification" style="display: none;">
+                    Reset Qualification
+                  </button>
+                <% } %>
+              </h5>
+            </div>
+            <div id="completedCalls" class="collapse" aria-labelledby="completedCallsHeader">
+              <div class="card-body">
+                <div id="completedCallsList">
+                  <% if (calls) { %>
+                    <% Array.from(calls.entries()).forEach(([key, call]) => { %>
+                      <% if (call.completed) { %>
+                        <div class="call-box completed">
+                          <div class="row">
+                            <div class="col-md-3">
+                              <strong>Incident:</strong> <%= call.incident %>
+                            </div>
+                            <div class="col-md-3">
+                              <strong>Type:</strong> <%= call.type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) %>
+                            </div>
+                            <div class="col-md-3">
+                              <strong>Disposition:</strong> <%= call.disposition.charAt(0).toUpperCase() + call.disposition.slice(1) %>
+                            </div>
+                            <div class="col-md-3">
+                              <button class="btn btn-secondary" disabled>Completed</button>
+                            </div>
+                          </div>
+                        </div>
+                      <% } %>
+                    <% }); %>
+                  <% } %>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <%- include('./partials/footer') %>
+  <%- include('./partials/scripts') %>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
+  <script>
+    const initialCompletedCalls = <%= completedCalls || 0 %>;
+    const completedCallsList = document.getElementById('completedCallsList');
+    const currentYear = new Date().getFullYear().toString().slice(-2);
+    const resetQualificationBtn = document.getElementById('resetQualification');
+    
+    // Show reset button if all calls are completed
+    if (initialCompletedCalls === 12) {
+      if (resetQualificationBtn) {
+        resetQualificationBtn.style.display = 'block';
+      }
+    }
+    
+    // Handle reset qualification button
+    if (resetQualificationBtn) {
+      resetQualificationBtn.addEventListener('click', async function() {
+        if (confirm('Are you sure you want to reset this qualification? This will remove the qualification and all progress.')) {
+          try {
+            const response = await fetch('/demo/remove-attendant-qualification', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({ userId: '<%= user._id %>' })
+            });
+            
+            const data = await response.json();
+            if (data.success) {
+              location.reload();
+            } else {
+              alert('Error resetting qualification: ' + data.error);
+            }
+          } catch (error) {
+            console.error('Error resetting qualification:', error);
+            alert('Error resetting qualification. Please try again.');
+          }
+        }
+      });
+    }
+    
+    // Format incident number input
+    document.querySelectorAll('input[id^="incident"]').forEach(input => {
+      input.addEventListener('input', function(e) {
+        // Remove any non-digit characters
+        let value = this.value.replace(/\D/g, '');
+        
+        // If empty, set to F-YY-
+        if (!value) {
+          this.value = `F-${currentYear}-`;
+          return;
+        }
+        
+        // If starts with F-YY-, keep it
+        if (this.value.startsWith(`F-${currentYear}-`)) {
+          return;
+        }
+        
+        // Format as F-YY-######
+        if (value.length <= 6) {
+          this.value = `F-${currentYear}-${value}`;
+        } else {
+          this.value = `F-${currentYear}-${value.slice(0, 6)}`;
+        }
+      });
+      
+      // Set initial value if empty
+      if (!input.value) {
+        input.value = `F-${currentYear}-`;
+      }
+    });
+    
+    document.querySelectorAll('.complete-btn').forEach(button => {
+      button.addEventListener('click', function() {
+        const callNumber = this.dataset.call;
+        const callBox = document.getElementById(`call${callNumber}`);
+        const incidentInput = document.getElementById(`incident${callNumber}`);
+        
+        // Validate incident number
+        if (!incidentInput.checkValidity()) {
+          incidentInput.classList.add('is-invalid');
+          return;
+        }
+        
+        if (!callBox.classList.contains('completed')) {
+          // Get form data
+          const formData = new FormData();
+          formData.append('callNumber', parseInt(callNumber)); // Ensure callNumber is a number
+          formData.append('incident', incidentInput.value);
+          formData.append('type', document.getElementById(`type${callNumber}`).value);
+          formData.append('disposition', document.querySelector(`input[name="disposition${callNumber}"]:checked`).value);
+          
+          // Save progress
+          fetch('/demo/save-attendant-progress', {
+            method: 'POST',
+            body: formData
+          })
+          .then(response => {
+            if (!response.ok) {
+              return response.json().then(data => {
+                throw new Error(data.error || 'Failed to save progress');
+              });
+            }
+            return response.json();
+          })
+          .then(data => {
+            if (data.success) {
+              // Disable all inputs in the call box
+              callBox.querySelectorAll('input, select').forEach(input => {
+                input.disabled = true;
+              });
+              
+              // Create completed call entry
+              const completedCall = document.createElement('div');
+              completedCall.className = 'call-box completed';
+              completedCall.innerHTML = `
+                <div class="row">
+                  <div class="col-md-3">
+                    <strong>Incident:</strong> ${incidentInput.value}
+                  </div>
+                  <div class="col-md-3">
+                    <strong>Type:</strong> ${document.getElementById(`type${callNumber}`).value.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                  </div>
+                  <div class="col-md-3">
+                    <strong>Disposition:</strong> ${document.querySelector(`input[name="disposition${callNumber}"]:checked`).value.charAt(0).toUpperCase() + document.querySelector(`input[name="disposition${callNumber}"]:checked`).value.slice(1)}
+                  </div>
+                  <div class="col-md-3">
+                    <button class="btn btn-secondary" disabled>Completed</button>
+                  </div>
+                </div>
+              `;
+              
+              // Add to completed list
+              completedCallsList.appendChild(completedCall);
+              
+              // Update progress
+              callBox.classList.add('completed');
+              const currentCompletedCalls = document.querySelectorAll('.call-box.completed').length;
+              updateProgress(currentCompletedCalls);
+              triggerConfetti();
+              
+              // If all calls are completed, award qualification
+              if (currentCompletedCalls === 12) {
+                awardQualification();
+              }
+              
+              // Remove from active calls
+              callBox.remove();
+              
+              // Show completed calls section
+              document.getElementById('completedCalls').classList.add('show');
+            }
+          })
+          .catch(error => {
+            console.error('Error saving progress:', error);
+            alert('Error saving progress: ' + error.message);
+          });
+        }
+      });
+    });
+    
+    function updateProgress(completedCount) {
+      const progressBar = document.getElementById('progressBar');
+      const percentage = (completedCount / 12) * 100;
+      progressBar.style.width = `${percentage}%`;
+      progressBar.textContent = `${completedCount}/12 Calls Completed`;
+    }
+    
+    function triggerConfetti() {
+      confetti({
+        particleCount: 100,
+        spread: 70,
+        origin: { y: 0.6 }
+      });
+    }
+    
+    function awardQualification() {
+      fetch('/demo/award-attendant-qualification', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          alert('Congratulations! You have completed the Attendant Packet and earned the qualification!');
+        }
+      })
+      .catch(error => {
+        console.error('Error awarding qualification:', error);
+      });
+    }
+  </script>
+</body>
+</html> 
