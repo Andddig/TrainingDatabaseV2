@@ -49,12 +49,85 @@
                            value="<%= searchParams.endDate || '' %>">
                 </div>
                 
+                <div class="col-md-3 d-flex align-items-end">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="showCompleted" name="showCompleted" value="true"
+                               <%= searchParams.showCompleted ? 'checked' : '' %>>
+                        <label class="form-check-label" for="showCompleted">
+                            Show already completed classes
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="col-md-3">
+                    <label for="showClosedRegistration" class="form-label">Registration Status</label>
+                    <select class="form-select" id="showClosedRegistration" name="showClosedRegistration">
+                        <option value="" <%= !searchParams.showClosedRegistration ? 'selected' : '' %>>Open registration only</option>
+                        <option value="true" <%= searchParams.showClosedRegistration === 'true' ? 'selected' : '' %>>Show all classes</option>
+                        <option value="only" <%= searchParams.showClosedRegistration === 'only' ? 'selected' : '' %>>Closed registration only</option>
+                    </select>
+                </div>
+                
                 <div class="col-12">
                     <button type="submit" class="btn btn-primary">Search</button>
                     <a href="/mfri/find-class" class="btn btn-secondary">Clear Filters</a>
                 </div>
             </form>
         </div>
+    </div>
+    
+    <!-- Debug Info (temporary) -->
+    <% if (typeof debugInfo !== 'undefined' && debugInfo) { %>
+        <div class="alert alert-info">
+            <h6>Debug Information:</h6>
+            <ul class="mb-0 small">
+                <li><strong>Registration Filter:</strong> <%= debugInfo.registrationFilterParam || 'none' %></li>
+                <li><strong>Filter Applied:</strong> <%= debugInfo.filterApplied %></li>
+                <li><strong>Classes Before Registration Filter:</strong> <%= debugInfo.classesBeforeRegistrationFilter %></li>
+                <li><strong>Classes After Registration Filter:</strong> <%= debugInfo.classesAfterRegistrationFilter %></li>
+                <% if (debugInfo.sampleFilterDecisions && debugInfo.sampleFilterDecisions.length > 0) { %>
+                    <li><strong>Sample Filter Decisions:</strong>
+                        <ul>
+                            <% debugInfo.sampleFilterDecisions.forEach(decision => { %>
+                                <li><%= decision.courseId %>: 
+                                    Reg Close: <%= decision.registrationClose %>, 
+                                    Should Keep: <%= decision.shouldKeep %>
+                                    <% if (decision.isRegClosed !== undefined) { %>
+                                        (Reg Closed: <%= decision.isRegClosed %>, Not Started: <%= decision.hasNotStarted %>)
+                                    <% } %>
+                                    <% if (decision.isValidDate !== undefined) { %>
+                                        (Valid Date: <%= decision.isValidDate %>, In Future: <%= decision.isInFuture %>)
+                                    <% } %>
+                                </li>
+                            <% }); %>
+                        </ul>
+                    </li>
+                <% } %>
+            </ul>
+        </div>
+    <% } %>
+    
+    <!-- Results info -->
+    <div class="mb-3">
+        <small class="text-muted">
+            Showing <%= classes.length %> class<%= classes.length !== 1 ? 'es' : '' %>
+            <% if (typeof expiredCount !== 'undefined' && expiredCount > 0) { %>
+                (<%= expiredCount %> expired class<%= expiredCount !== 1 ? 'es' : '' %> automatically hidden)
+            <% } %>
+            <br>
+            <% if (!searchParams.showCompleted && typeof filteredCount !== 'undefined' && filteredCount > 0) { %>
+                <span class="text-info"><%= filteredCount %> already completed class<%= filteredCount !== 1 ? 'es' : '' %> hidden</span>
+            <% } else if (!searchParams.showCompleted) { %>
+                <span class="text-success">No completed classes to hide</span>
+            <% } %>
+            <% if (searchParams.showClosedRegistration === 'only') { %>
+                • <span class="text-warning">Showing only classes with closed registration</span>
+            <% } else if (!searchParams.showClosedRegistration) { %>
+                • <span class="text-info">Showing only classes with open registration</span>
+            <% } else { %>
+                • <span class="text-secondary">Showing all registration statuses</span>
+            <% } %>
+        </small>
     </div>
     
     <!-- Classes Table -->
@@ -68,6 +141,7 @@
                     <th>Start Date</th>
                     <th>End Date</th>
                     <th>Hours</th>
+                    <th>Registration</th>
                     <th>Actions</th>
                 </tr>
             </thead>
@@ -80,6 +154,34 @@
                         <td><%= new Date(cls.startDate).toLocaleDateString() %></td>
                         <td><%= new Date(cls.endDate).toLocaleDateString() %></td>
                         <td><%= cls.instructionalHours %></td>
+                        <td>
+                            <% 
+                                const now = new Date();
+                                const regClose = new Date(cls.registrationClose);
+                                const startDate = new Date(cls.startDate);
+                                let regStatus = 'Unknown';
+                                let regClass = 'secondary';
+                                
+                                if (!isNaN(regClose.getTime())) {
+                                    if (regClose < now) {
+                                        if (startDate > now) {
+                                            regStatus = 'Closed';
+                                            regClass = 'warning';
+                                        } else {
+                                            regStatus = 'Class Started';
+                                            regClass = 'info';
+                                        }
+                                    } else {
+                                        regStatus = 'Open';
+                                        regClass = 'success';
+                                    }
+                                }
+                            %>
+                            <span class="badge badge-<%= regClass %>"><%= regStatus %></span>
+                            <% if (!isNaN(regClose.getTime())) { %>
+                                <br><small class="text-muted">Until <%= regClose.toLocaleDateString() %></small>
+                            <% } %>
+                        </td>
                         <td>
                             <a href="/mfri/class/<%= cls.courseId %>" class="btn btn-sm btn-info">View Details</a>
                         </td>

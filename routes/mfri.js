@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const MfriClass = require('../models/mfriClass');
+const TrainingSubmission = require('../models/TrainingSubmission');
+const TrainingClass = require('../models/TrainingClass');
 const axios = require('axios');
 const cheerio = require('cheerio');
 
@@ -14,6 +16,22 @@ const isAuthenticated = (req, res, next) => {
 
 // Route to display all classes
 router.get('/find-class', isAuthenticated, async (req, res) => {
+    // Initialize debug info early
+    let debugInfo = {
+        registrationFilterParam: req.query.showClosedRegistration,
+        classesBeforeRegistrationFilter: 0,
+        filterApplied: 'none',
+        classesAfterRegistrationFilter: 0,
+        sampleFilterDecisions: [],
+        currentTime: new Date().toISOString(),
+        queryParams: req.query
+    };
+    
+    console.log('=== FIND CLASS DEBUG START ===');
+    console.log('Query parameters:', req.query);
+    console.log('showClosedRegistration param:', req.query.showClosedRegistration);
+    console.log('Current time:', debugInfo.currentTime);
+    
     try {
         const region = req.query.region || 'North Central';
         const searchQuery = {};
@@ -44,7 +62,112 @@ router.get('/find-class', isAuthenticated, async (req, res) => {
             searchQuery.endDate = { $lte: new Date(req.query.endDate) };
         }
         
-        const classes = await MfriClass.find(searchQuery).sort({ startDate: 1 });
+        let classes = await MfriClass.find(searchQuery).sort({ startDate: 1 });
+        const totalClassesBeforeFilter = classes.length;
+        let filteredCount = 0;
+        let expiredCount = 0;
+        
+        // Filter out expired classes (classes that have already ended)
+        const now = new Date();
+        const classesBeforeExpiredFilter = classes.length;
+        classes = classes.filter(cls => {
+            return new Date(cls.endDate) >= now; // Keep classes that haven't ended yet
+        });
+        expiredCount = classesBeforeExpiredFilter - classes.length;
+        
+        // Filter based on registration status if requested
+        debugInfo.classesBeforeRegistrationFilter = classes.length;
+        
+        if (req.query.showClosedRegistration === 'only') {
+            debugInfo.filterApplied = 'closed registration only';
+            // Show only classes where registration is closed but class hasn't started
+            classes = classes.filter((cls, index) => {
+                const regCloseDate = new Date(cls.registrationClose);
+                const startDate = new Date(cls.startDate);
+                const isRegCloseDateValid = !isNaN(regCloseDate.getTime());
+                const isStartDateValid = !isNaN(startDate.getTime());
+                const isRegClosed = isRegCloseDateValid && regCloseDate < now;
+                const hasNotStarted = isStartDateValid && startDate > now;
+                const shouldKeep = isRegClosed && hasNotStarted;
+                
+                // Store sample decisions for debugging (first 5)
+                if (index < 5) {
+                    debugInfo.sampleFilterDecisions.push({
+                        courseId: cls.courseId,
+                        registrationClose: cls.registrationClose,
+                        startDate: cls.startDate,
+                        currentTime: now.toISOString(),
+                        isRegCloseDateValid,
+                        isStartDateValid,
+                        isRegClosed,
+                        hasNotStarted,
+                        shouldKeep
+                    });
+                }
+                
+                return shouldKeep;
+            });
+        } else if (!req.query.showClosedRegistration || req.query.showClosedRegistration === '') {
+            debugInfo.filterApplied = 'open registration only (default)';
+            // Default: show only classes where registration is still open
+            classes = classes.filter((cls, index) => {
+                const regCloseDate = new Date(cls.registrationClose);
+                const isRegCloseDateValid = !isNaN(regCloseDate.getTime());
+                // Only keep classes where registration is still open (future date) or no reg date exists
+                const shouldKeep = !isRegCloseDateValid || regCloseDate >= now;
+                
+                // Store sample decisions for debugging (first 5)
+                if (index < 5) {
+                    debugInfo.sampleFilterDecisions.push({
+                        courseId: cls.courseId,
+                        registrationClose: cls.registrationClose,
+                        regCloseDate: isRegCloseDateValid ? regCloseDate.toISOString() : 'Invalid Date',
+                        currentTime: now.toISOString(),
+                        isRegCloseDateValid,
+                        isRegInFuture: isRegCloseDateValid ? regCloseDate >= now : false,
+                        shouldKeep
+                    });
+                }
+                
+                return shouldKeep;
+            });
+        } else {
+            debugInfo.filterApplied = 'show all classes';
+        }
+        
+        debugInfo.classesAfterRegistrationFilter = classes.length;
+        
+        console.log('=== REGISTRATION FILTER RESULTS ===');
+        console.log(`Filter applied: ${debugInfo.filterApplied}`);
+        console.log(`Classes before registration filter: ${debugInfo.classesBeforeRegistrationFilter}`);
+        console.log(`Classes after registration filter: ${debugInfo.classesAfterRegistrationFilter}`);
+        console.log('Sample filter decisions:', debugInfo.sampleFilterDecisions);
+        console.log('=====================================');
+        
+        // Filter out completed classes unless user specifically wants to see them
+        if (!req.query.showCompleted) {
+            const approvedSubmissions = await TrainingSubmission.find({
+                student: req.user._id,
+                status: 'approved'
+            }).populate('trainingClass');
+            
+            // Get the names of completed training classes
+            const completedClassNames = approvedSubmissions.map(submission => 
+                submission.trainingClass.name.toLowerCase()
+            );
+            
+            // Filter out MFRI classes that match completed training class names
+            const filteredClasses = classes.filter(mfriClass => {
+                const mfriClassName = mfriClass.title.toLowerCase();
+                // Check if this MFRI class matches any completed training class
+                return !completedClassNames.some(completedName => 
+                    mfriClassName.includes(completedName) || completedName.includes(mfriClassName)
+                );
+            });
+            
+            filteredCount = classes.length - filteredClasses.length;
+            classes = filteredClasses;
+        }
         
         // Get unique locations for the filter dropdown
         const locations = [...new Set(classes.map(c => c.location))].sort();
@@ -58,17 +181,46 @@ router.get('/find-class', isAuthenticated, async (req, res) => {
             user: req.user,
             locations,
             courseTypes,
-            searchParams: req.query
+            searchParams: req.query,
+            totalClassesBeforeFilter,
+            filteredCount: filteredCount || 0,
+            expiredCount: expiredCount || 0,
+            debugInfo
         });
     } catch (error) {
         console.error('Error fetching classes:', error);
-        res.status(500).render('error', { message: 'Error fetching classes' });
+        res.status(500).render('error', { 
+            message: 'Error fetching classes',
+            debugInfo: debugInfo || null
+        });
     }
 });
 
 router.get('/debug-classes', isAuthenticated, async (req, res) => {
     const classes = await MfriClass.find().sort({ startDate: 1 });
-    res.json(classes);
+    const now = new Date();
+    
+    // Add debug info to each class
+    const debugClasses = classes.map(cls => ({
+        courseId: cls.courseId,
+        title: cls.title,
+        startDate: cls.startDate,
+        endDate: cls.endDate,
+        registrationClose: cls.registrationClose,
+        registrationCloseDate: new Date(cls.registrationClose),
+        isRegCloseDateValid: !isNaN(new Date(cls.registrationClose).getTime()),
+        isRegClosed: !isNaN(new Date(cls.registrationClose).getTime()) && new Date(cls.registrationClose) < now,
+        isRegOpen: isNaN(new Date(cls.registrationClose).getTime()) || new Date(cls.registrationClose) >= now,
+        hasStarted: !isNaN(new Date(cls.startDate).getTime()) && new Date(cls.startDate) <= now,
+        hasEnded: !isNaN(new Date(cls.endDate).getTime()) && new Date(cls.endDate) < now
+    }));
+    
+    res.json({
+        currentTime: now,
+        queryParams: req.query,
+        totalClasses: classes.length,
+        debugClasses: debugClasses.slice(0, 10) // Show first 10 for debugging
+    });
 });
 
 // Function to scrape MFRI website for classes
