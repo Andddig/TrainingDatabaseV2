@@ -3,151 +3,172 @@
 <div class="container mt-4">
     <h2>Find MFRI Classes</h2>
     
-    <!-- Search Form -->
-    <div class="card mb-4">
-        <div class="card-body">
-            <form method="GET" action="/mfri/find-class" class="row g-3">
-                <div class="col-md-3">
-                    <label for="courseType" class="form-label">Course Type</label>
-                    <select class="form-select" id="courseType" name="courseType">
-                        <option value="">All Types</option>
-                        <% courseTypes.forEach(type => { %>
-                            <option value="<%= type %>" <%= searchParams.courseType === type ? 'selected' : '' %>>
-                                <%= type %>
-                            </option>
-                        <% }); %>
-                    </select>
-                </div>
-                
-                <div class="col-md-3">
-                    <label for="location" class="form-label">Location</label>
-                    <select class="form-select" id="location" name="location">
-                        <option value="">All Locations</option>
-                        <% locations.forEach(loc => { %>
-                            <option value="<%= loc %>" <%= searchParams.location === loc ? 'selected' : '' %>>
-                                <%= loc %>
-                            </option>
-                        <% }); %>
-                    </select>
-                </div>
-                
-                <div class="col-md-3">
-                    <label for="title" class="form-label">Class Name</label>
-                    <input type="text" class="form-control" id="title" name="title" 
-                           value="<%= searchParams.title || '' %>" placeholder="Search by class name">
-                </div>
-                
-                <div class="col-md-3">
-                    <label for="startDate" class="form-label">Start Date</label>
-                    <input type="date" class="form-control" id="startDate" name="startDate" 
-                           value="<%= searchParams.startDate || '' %>">
-                </div>
-                
-                <div class="col-md-3">
-                    <label for="endDate" class="form-label">End Date</label>
-                    <input type="date" class="form-control" id="endDate" name="endDate" 
-                           value="<%= searchParams.endDate || '' %>">
-                </div>
-                
-                <div class="col-md-3 d-flex align-items-end">
-                    <div class="form-check">
-                        <input class="form-check-input" type="checkbox" id="showCompleted" name="showCompleted" value="true"
-                               <%= searchParams.showCompleted ? 'checked' : '' %>>
-                        <label class="form-check-label" for="showCompleted">
-                            Show already completed classes
-                        </label>
+    <!-- Filter Toggle Button -->
+    <div class="mb-3">
+        <button class="btn btn-outline-primary" type="button" data-toggle="collapse" data-target="#filterCollapse" aria-expanded="false" aria-controls="filterCollapse" id="filterToggleBtn">
+            <i class="fas fa-filter me-2"></i>
+            <span id="filterBtnText">Show Filters</span>
+            <i class="fas fa-chevron-down ms-2" id="filterChevron"></i>
+        </button>
+        <span class="ms-2 small text-muted" id="activeFiltersText"></span>
+    </div>
+    
+    <!-- Collapsible Search Form -->
+    <div class="collapse" id="filterCollapse">
+        <div class="card mb-4 border-primary">
+            <div class="card-header bg-primary bg-gradient text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-search me-2"></i>
+                    Filter Classes
+                </h5>
+            </div>
+            <div class="card-body">
+                <form method="GET" action="/mfri/find-class" class="row g-3" id="filterForm">
+                    <div class="col-md-4">
+                        <label for="courseType" class="form-label">Course Type</label>
+                        <select class="form-select" id="courseType" name="courseType">
+                            <option value="">All Types</option>
+                            <% courseTypes.forEach(type => { %>
+                                <option value="<%= type %>" <%= searchParams.courseType === type ? 'selected' : '' %>>
+                                    <%= type %>
+                                </option>
+                            <% }); %>
+                        </select>
                     </div>
-                </div>
-                
-                <div class="col-md-3">
-                    <label for="showClosedRegistration" class="form-label">Registration Status</label>
-                    <select class="form-select" id="showClosedRegistration" name="showClosedRegistration">
-                        <option value="" <%= !searchParams.showClosedRegistration ? 'selected' : '' %>>Open registration only</option>
-                        <option value="true" <%= searchParams.showClosedRegistration === 'true' ? 'selected' : '' %>>Show all classes</option>
-                        <option value="only" <%= searchParams.showClosedRegistration === 'only' ? 'selected' : '' %>>Closed registration only</option>
-                    </select>
-                </div>
-                
-                <div class="col-12">
-                    <button type="submit" class="btn btn-primary">Search</button>
-                    <a href="/mfri/find-class" class="btn btn-secondary">Clear Filters</a>
-                </div>
-            </form>
+                    
+                    <div class="col-md-4">
+                        <label for="location" class="form-label">Location</label>
+                        <select class="form-select" id="location" name="location">
+                            <option value="">All Locations</option>
+                            <% locations.forEach(loc => { %>
+                                <option value="<%= loc %>" <%= searchParams.location === loc ? 'selected' : '' %>>
+                                    <%= loc %>
+                                </option>
+                            <% }); %>
+                        </select>
+                    </div>
+                    
+                    <div class="col-md-4">
+                        <label for="title" class="form-label">Class Name</label>
+                        <input type="text" class="form-control" id="title" name="title" 
+                               value="<%= searchParams.title || '' %>" placeholder="Search by class name">
+                    </div>
+                    
+                    <div class="col-md-4">
+                        <label for="startDate" class="form-label">Start Date (From)</label>
+                        <input type="date" class="form-control" id="startDate" name="startDate" 
+                               value="<%= searchParams.startDate || '' %>">
+                    </div>
+                    
+                    <div class="col-md-4">
+                        <label for="endDate" class="form-label">End Date (To)</label>
+                        <input type="date" class="form-control" id="endDate" name="endDate" 
+                               value="<%= searchParams.endDate || '' %>">
+                    </div>
+                    
+                    <div class="col-md-4">
+                        <label for="showClosedRegistration" class="form-label">Registration Status</label>
+                        <select class="form-select" id="showClosedRegistration" name="showClosedRegistration">
+                            <option value="" <%= !searchParams.showClosedRegistration ? 'selected' : '' %>>Open registration only</option>
+                            <option value="true" <%= searchParams.showClosedRegistration === 'true' ? 'selected' : '' %>>Show all classes</option>
+                            <option value="only" <%= searchParams.showClosedRegistration === 'only' ? 'selected' : '' %>>Closed registration only</option>
+                        </select>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="form-check mt-4">
+                            <input class="form-check-input" type="checkbox" id="showCompleted" name="showCompleted" value="true"
+                                   <%= searchParams.showCompleted ? 'checked' : '' %>>
+                            <label class="form-check-label" for="showCompleted">
+                                Show already completed classes
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6 d-flex justify-content-end align-items-end">
+                        <div class="btn-group">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-search me-2"></i>Apply Filters
+                            </button>
+                            <a href="/mfri/find-class" class="btn btn-outline-secondary">
+                                <i class="fas fa-times me-2"></i>Clear All
+                            </a>
+                        </div>
+                    </div>
+                </form>
+            </div>
         </div>
     </div>
     
-    <!-- Debug Info (temporary) -->
-    <% if (typeof debugInfo !== 'undefined' && debugInfo) { %>
-        <div class="alert alert-info">
-            <h6>Debug Information:</h6>
-            <ul class="mb-0 small">
-                <li><strong>Registration Filter:</strong> <%= debugInfo.registrationFilterParam || 'none' %></li>
-                <li><strong>Filter Applied:</strong> <%= debugInfo.filterApplied %></li>
-                <li><strong>Classes Before Registration Filter:</strong> <%= debugInfo.classesBeforeRegistrationFilter %></li>
-                <li><strong>Classes After Registration Filter:</strong> <%= debugInfo.classesAfterRegistrationFilter %></li>
-                <% if (debugInfo.sampleFilterDecisions && debugInfo.sampleFilterDecisions.length > 0) { %>
-                    <li><strong>Sample Filter Decisions:</strong>
-                        <ul>
-                            <% debugInfo.sampleFilterDecisions.forEach(decision => { %>
-                                <li><%= decision.courseId %>: 
-                                    Reg Close: <%= decision.registrationClose %>, 
-                                    Should Keep: <%= decision.shouldKeep %>
-                                    <% if (decision.isRegClosed !== undefined) { %>
-                                        (Reg Closed: <%= decision.isRegClosed %>, Not Started: <%= decision.hasNotStarted %>)
-                                    <% } %>
-                                    <% if (decision.isValidDate !== undefined) { %>
-                                        (Valid Date: <%= decision.isValidDate %>, In Future: <%= decision.isInFuture %>)
-                                    <% } %>
-                                </li>
-                            <% }); %>
-                        </ul>
-                    </li>
-                <% } %>
-            </ul>
-        </div>
-    <% } %>
-    
     <!-- Results info -->
-    <div class="mb-3">
-        <small class="text-muted">
-            Showing <%= classes.length %> class<%= classes.length !== 1 ? 'es' : '' %>
-            <% if (typeof expiredCount !== 'undefined' && expiredCount > 0) { %>
-                (<%= expiredCount %> expired class<%= expiredCount !== 1 ? 'es' : '' %> automatically hidden)
-            <% } %>
-            <br>
-            <% if (!searchParams.showCompleted && typeof filteredCount !== 'undefined' && filteredCount > 0) { %>
-                <span class="text-info"><%= filteredCount %> already completed class<%= filteredCount !== 1 ? 'es' : '' %> hidden</span>
-            <% } else if (!searchParams.showCompleted) { %>
-                <span class="text-success">No completed classes to hide</span>
-            <% } %>
-            <% if (searchParams.showClosedRegistration === 'only') { %>
-                • <span class="text-warning">Showing only classes with closed registration</span>
-            <% } else if (!searchParams.showClosedRegistration) { %>
-                • <span class="text-info">Showing only classes with open registration</span>
-            <% } else { %>
-                • <span class="text-secondary">Showing all registration statuses</span>
-            <% } %>
-        </small>
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <small class="text-muted">
+                Showing <strong><%= classes.length %></strong> class<%= classes.length !== 1 ? 'es' : '' %>
+                <% if (typeof expiredCount !== 'undefined' && expiredCount > 0) { %>
+                    (<%= expiredCount %> expired class<%= expiredCount !== 1 ? 'es' : '' %> automatically hidden)
+                <% } %>
+                <br>
+                <% if (!searchParams.showCompleted && typeof filteredCount !== 'undefined' && filteredCount > 0) { %>
+                    <span class="text-info"><%= filteredCount %> already completed class<%= filteredCount !== 1 ? 'es' : '' %> hidden</span>
+                <% } else if (!searchParams.showCompleted) { %>
+                    <span class="text-success">No completed classes to hide</span>
+                <% } %>
+                <% if (searchParams.showClosedRegistration === 'only') { %>
+                    • <span class="text-warning">Showing only classes with closed registration</span>
+                <% } else if (!searchParams.showClosedRegistration) { %>
+                    • <span class="text-info">Showing only classes with open registration</span>
+                <% } else { %>
+                    • <span class="text-secondary">Showing all registration statuses</span>
+                <% } %>
+            </small>
+        </div>
+        <div class="text-end">
+            <small class="text-muted">Click column headers to sort</small>
+        </div>
     </div>
     
     <!-- Classes Table -->
     <div class="table-responsive">
-        <table class="table table-striped">
-            <thead>
+        <table class="table table-striped table-hover" id="classesTable">
+            <thead class="table-dark">
                 <tr>
-                    <th>Course ID</th>
-                    <th>Title</th>
-                    <th>Location</th>
-                    <th>Start Date</th>
-                    <th>End Date</th>
-                    <th>Hours</th>
+                    <th class="sortable" data-sort="courseId">
+                        Course ID
+                        <i class="fas fa-sort ms-1"></i>
+                    </th>
+                    <th class="sortable" data-sort="title">
+                        Title
+                        <i class="fas fa-sort ms-1"></i>
+                    </th>
+                    <th class="sortable" data-sort="location">
+                        Location
+                        <i class="fas fa-sort ms-1"></i>
+                    </th>
+                    <th class="sortable" data-sort="startDate">
+                        Start Date
+                        <i class="fas fa-sort ms-1"></i>
+                    </th>
+                    <th class="sortable" data-sort="endDate">
+                        End Date
+                        <i class="fas fa-sort ms-1"></i>
+                    </th>
+                    <th class="sortable" data-sort="hours">
+                        Hours
+                        <i class="fas fa-sort ms-1"></i>
+                    </th>
                     <th>Registration</th>
                     <th>Actions</th>
                 </tr>
             </thead>
             <tbody>
                 <% classes.forEach(cls => { %>
-                    <tr>
+                    <tr data-course-id="<%= cls.courseId %>" 
+                        data-title="<%= cls.title %>" 
+                        data-location="<%= cls.location %>" 
+                        data-start-date="<%= cls.startDate %>" 
+                        data-end-date="<%= cls.endDate %>" 
+                        data-hours="<%= cls.instructionalHours %>">
                         <td><%= cls.courseId %></td>
                         <td><%= cls.title %></td>
                         <td><%= cls.location %></td>
@@ -177,13 +198,15 @@
                                     }
                                 }
                             %>
-                            <span class="badge badge-<%= regClass %>"><%= regStatus %></span>
+                            <span class="badge bg-<%= regClass %>"><%= regStatus %></span>
                             <% if (!isNaN(regClose.getTime())) { %>
                                 <br><small class="text-muted">Until <%= regClose.toLocaleDateString() %></small>
                             <% } %>
                         </td>
                         <td>
-                            <a href="/mfri/class/<%= cls.courseId %>" class="btn btn-sm btn-info">View Details</a>
+                            <a href="/mfri/class/<%= cls.courseId %>" class="btn btn-sm btn-info">
+                                <i class="fas fa-eye me-1"></i>View Details
+                            </a>
                         </td>
                     </tr>
                 <% }); %>
@@ -191,5 +214,149 @@
         </table>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Filter toggle functionality
+    const filterToggleBtn = document.getElementById('filterToggleBtn');
+    const filterBtnText = document.getElementById('filterBtnText');
+    const filterChevron = document.getElementById('filterChevron');
+    const filterCollapse = document.getElementById('filterCollapse');
+    const activeFiltersText = document.getElementById('activeFiltersText');
+    
+    // Manual toggle functionality since we can't rely on jQuery
+    filterToggleBtn.addEventListener('click', function() {
+        if (filterCollapse.classList.contains('show')) {
+            // Hide the collapse
+            filterCollapse.classList.remove('show');
+            filterBtnText.textContent = 'Show Filters';
+            filterChevron.classList.remove('fa-chevron-up');
+            filterChevron.classList.add('fa-chevron-down');
+        } else {
+            // Show the collapse
+            filterCollapse.classList.add('show');
+            filterBtnText.textContent = 'Hide Filters';
+            filterChevron.classList.remove('fa-chevron-down');
+            filterChevron.classList.add('fa-chevron-up');
+        }
+    });
+    
+    // Show active filters count
+    function updateActiveFiltersDisplay() {
+        const params = new URLSearchParams(window.location.search);
+        let activeCount = 0;
+        const activeFilters = [];
+        
+        if (params.get('courseType')) { activeCount++; activeFilters.push('Course Type'); }
+        if (params.get('location')) { activeCount++; activeFilters.push('Location'); }
+        if (params.get('title')) { activeCount++; activeFilters.push('Class Name'); }
+        if (params.get('startDate')) { activeCount++; activeFilters.push('Start Date'); }
+        if (params.get('endDate')) { activeCount++; activeFilters.push('End Date'); }
+        if (params.get('showCompleted')) { activeCount++; activeFilters.push('Show Completed'); }
+        if (params.get('showClosedRegistration')) { activeCount++; activeFilters.push('Registration Status'); }
+        
+        if (activeCount > 0) {
+            activeFiltersText.innerHTML = `<span class="badge bg-primary">${activeCount} filter${activeCount > 1 ? 's' : ''} active</span>`;
+            // Auto-expand if filters are active
+            if (!filterCollapse.classList.contains('show')) {
+                filterCollapse.classList.add('show');
+                filterBtnText.textContent = 'Hide Filters';
+                filterChevron.classList.remove('fa-chevron-down');
+                filterChevron.classList.add('fa-chevron-up');
+            }
+        } else {
+            activeFiltersText.innerHTML = '';
+        }
+    }
+    
+    updateActiveFiltersDisplay();
+    
+    // Table sorting functionality
+    const table = document.getElementById('classesTable');
+    const tbody = table.querySelector('tbody');
+    const sortableHeaders = table.querySelectorAll('.sortable');
+    let currentSort = { column: null, direction: 'asc' };
+    
+    sortableHeaders.forEach(header => {
+        header.style.cursor = 'pointer';
+        header.addEventListener('click', function() {
+            const sortBy = this.dataset.sort;
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+            
+            // Update sort direction
+            if (currentSort.column === sortBy) {
+                currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentSort.direction = 'asc';
+            }
+            currentSort.column = sortBy;
+            
+            // Update header icons
+            sortableHeaders.forEach(h => {
+                const icon = h.querySelector('i');
+                icon.className = 'fas fa-sort ms-1';
+                h.classList.remove('table-active');
+            });
+            
+            const activeIcon = this.querySelector('i');
+            activeIcon.className = currentSort.direction === 'asc' ? 'fas fa-sort-up ms-1' : 'fas fa-sort-down ms-1';
+            this.classList.add('table-active');
+            
+            // Sort rows
+            rows.sort((a, b) => {
+                let aVal, bVal;
+                
+                switch(sortBy) {
+                    case 'courseId':
+                        aVal = a.dataset.courseId;
+                        bVal = b.dataset.courseId;
+                        break;
+                    case 'title':
+                        aVal = a.dataset.title;
+                        bVal = b.dataset.title;
+                        break;
+                    case 'location':
+                        aVal = a.dataset.location;
+                        bVal = b.dataset.location;
+                        break;
+                    case 'startDate':
+                        aVal = new Date(a.dataset.startDate);
+                        bVal = new Date(b.dataset.startDate);
+                        break;
+                    case 'endDate':
+                        aVal = new Date(a.dataset.endDate);
+                        bVal = new Date(b.dataset.endDate);
+                        break;
+                    case 'hours':
+                        aVal = parseInt(a.dataset.hours) || 0;
+                        bVal = parseInt(b.dataset.hours) || 0;
+                        break;
+                    default:
+                        return 0;
+                }
+                
+                // Handle different data types
+                if (aVal instanceof Date && bVal instanceof Date) {
+                    return currentSort.direction === 'asc' ? aVal - bVal : bVal - aVal;
+                } else if (typeof aVal === 'number' && typeof bVal === 'number') {
+                    return currentSort.direction === 'asc' ? aVal - bVal : bVal - aVal;
+                } else {
+                    // String comparison
+                    aVal = String(aVal).toLowerCase();
+                    bVal = String(bVal).toLowerCase();
+                    if (currentSort.direction === 'asc') {
+                        return aVal.localeCompare(bVal);
+                    } else {
+                        return bVal.localeCompare(aVal);
+                    }
+                }
+            });
+            
+            // Re-append sorted rows
+            rows.forEach(row => tbody.appendChild(row));
+        });
+    });
+});
+</script>
 
 <%- include('partials/footer') %> 
