@@ -1,0 +1,44 @@
+> bvar19-portal@1.0.0 start
+
+> node server.js
+
+Starting server initialization...
+
+Attempting to connect to MongoDB...
+
+MongoDB connection attempt...
+
+Initializing User model...
+
+Starting MFRI class scraping...
+
+Assertion failed: You must provide either mongoUrl|clientPromise|client in options
+
+/app/node_modules/connect-mongo/build/main/lib/MongoStore.js:123
+
+            throw new Error('Cannot init client. Please provide correct options');
+
+            ^
+
+Error: Cannot init client. Please provide correct options
+
+    at new MongoStore (/app/node_modules/connect-mongo/build/main/lib/MongoStore.js:123:19)
+
+    at MongoStore.create (/app/node_modules/connect-mongo/build/main/lib/MongoStore.js:140:16)
+
+    at Object.<anonymous> (/app/server.js:86:21)
+
+    at Module._compile (node:internal/modules/cjs/loader:1364:14)
+
+    at Module._extensions..js (node:internal/modules/cjs/loader:1422:10)
+
+    at Module.load (node:internal/modules/cjs/loader:1203:32)
+
+    at Module._load (node:internal/modules/cjs/loader:1019:12)
+
+    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:128:12)
+
+    at node:internal/main/run_main_module:28:49
+
+Node.js v18.20.8
+
