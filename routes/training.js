@@ -53,10 +53,16 @@ const isTrainingOfficer = (req, res, next) => {
   });
 };
 
+// Ensure uploads directory exists
+const uploadsDir = path.join(__dirname, '..', 'public', 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
 // Set up multer for file uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, 'public/uploads/');
+    cb(null, uploadsDir);
   },
   filename: (req, file, cb) => {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
@@ -81,6 +87,17 @@ const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
 });
 
+const uploadCertificate = (req, res, next) => {
+  upload.single('certificateFile')(req, res, (err) => {
+    if (!err) {
+      return next();
+    }
+
+    const message = err.message || 'File upload failed';
+    return res.redirect('/training/submit?error=' + encodeURIComponent(message));
+  });
+};
+
 // STUDENT ROUTES
 
 // Show submission form
@@ -103,7 +120,7 @@ router.get('/submit', isAuthenticated, async (req, res) => {
 });
 
 // Handle submission
-router.post('/submit', isAuthenticated, upload.single('certificateFile'), async (req, res) => {
+router.post('/submit', isAuthenticated, uploadCertificate, async (req, res) => {
   try {
     const { trainingClass, startDate, endDate, hoursLogged } = req.body;
     
