@@ -120,7 +120,7 @@ passport.use(new MicrosoftStrategy({
 }, async (accessToken, refreshToken, profile, done) => {
   try {
     const user = await User.findOrCreateFromMicrosoft(profile);
-    
+      
     return done(null, user);
   } catch (error) {
     console.error('Authentication error:', error);

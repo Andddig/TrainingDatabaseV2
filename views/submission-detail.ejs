@@ -84,6 +84,12 @@
               <span class="info-label">Submitted On:</span>
               <span class="info-value"><%= new Date(submission.createdAt).toLocaleString() %></span>
             </div>
+            <% if (submission.createdByAdmin) { %>
+              <div class="info-row">
+                <span class="info-label">Uploaded By Admin:</span>
+                <span class="info-value"><%= submission.createdByAdmin.displayName %></span>
+              </div>
+            <% } %>
             <% if (submission.status !== 'pending') { %>
               <div class="info-row">
                 <span class="info-label">Reviewed By:</span>
