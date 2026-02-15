@@ -35,3 +35,6 @@ mongodb-data/
 # OS files
 .DS_Store
 Thumbs.db 
+
+#Certs
+public/uploads
