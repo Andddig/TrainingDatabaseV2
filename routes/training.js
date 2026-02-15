@@ -125,6 +125,341 @@ const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
 });
 
+const extractionUpload = multer({
+  storage: multer.memoryStorage(),
+  fileFilter,
+  limits: { fileSize: 8 * 1024 * 1024 }
+});
+
+const toSafeNumber = (value) => {
+  const parsed = parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const parseDateAsLocal = (value) => {
+  if (!value) {
+    return null;
+  }
+
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+
+  const text = String(value).trim();
+  if (!text) {
+    return null;
+  }
+
+  const isoMatch = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoMatch) {
+    const year = parseInt(isoMatch[1], 10);
+    const month = parseInt(isoMatch[2], 10) - 1;
+    const day = parseInt(isoMatch[3], 10);
+    const date = new Date(year, month, day, 12, 0, 0, 0);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  const fallback = new Date(text);
+  return Number.isNaN(fallback.getTime()) ? null : fallback;
+};
+
+const deleteFileIfExists = async (filename) => {
+  if (!filename) {
+    return;
+  }
+
+  const fullPath = path.join(uploadsDir, filename);
+  try {
+    await fsPromises.access(fullPath, fs.constants.F_OK);
+    await fsPromises.unlink(fullPath);
+  } catch (err) {
+    if (err && err.code !== 'ENOENT') {
+      console.warn('Unable to delete file:', fullPath, err.message);
+    }
+  }
+};
+
+const normalizeWhitespace = (text) => (text || '').replace(/\s+/g, ' ').trim();
+
+const toSingleLine = (text) => normalizeWhitespace((text || '').replace(/[\r\n]+/g, ' '));
+
+const cleanupName = (value) => {
+  if (!value) {
+    return null;
+  }
+
+  let cleaned = toSingleLine(value)
+    .replace(/\b(has\s+passed|successfully\s+completed|completed\s+all\s+course\s+work)\b.*$/i, '')
+    .replace(/[^A-Za-z'.,\-\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  cleaned = cleaned.replace(/[.,\-\s]+$/, '').trim();
+  if (!cleaned) {
+    return null;
+  }
+
+  const words = cleaned.split(' ').filter(Boolean);
+  if (words.length < 2) {
+    return null;
+  }
+
+  return cleaned;
+};
+
+const tryParseDate = (value) => {
+  if (!value) {
+    return null;
+  }
+
+  const parsed = new Date(value);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed;
+  }
+
+  const normalized = value.replace(/(\d{1,2})\.(\d{1,2})\.(\d{2,4})/, '$1/$2/$3');
+  const fallback = new Date(normalized);
+  return Number.isNaN(fallback.getTime()) ? null : fallback;
+};
+
+const parseCertificateFields = (rawText) => {
+  const text = typeof rawText === 'string' ? rawText : '';
+  const multiline = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  const lines = multiline
+    .split('\n')
+    .map((line) => normalizeWhitespace(line))
+    .filter(Boolean);
+  const compact = toSingleLine(multiline);
+
+  const extracted = {
+    rawText: text,
+    recipientName: null,
+    trainingClassName: null,
+    hoursLogged: null,
+    courseIdentifier: null,
+    logNumber: null,
+    courseDate: null,
+    courseDateText: null,
+    isLikelyMfri: false
+  };
+
+  if (!compact) {
+    return extracted;
+  }
+
+  const awardLineIdx = lines.findIndex((line) => /\b(awarded\s+to|this\s+certificate\s+awarded\s+to)\b/i.test(line));
+  if (awardLineIdx >= 0) {
+    for (let i = awardLineIdx + 1; i < Math.min(awardLineIdx + 4, lines.length); i += 1) {
+      if (/\b(has\s+passed|completed\s+all\s+course\s+work|course\s+work)\b/i.test(lines[i])) {
+        break;
+      }
+      const candidateName = cleanupName(lines[i]);
+      if (candidateName) {
+        extracted.recipientName = candidateName;
+        break;
+      }
+    }
+  }
+
+  if (!extracted.recipientName) {
+    const blockRecipient = multiline.match(/awarded\s+to\s*\n+([\s\S]{0,120}?)\n+has\s+passed/i);
+    if (blockRecipient && blockRecipient[1]) {
+      extracted.recipientName = cleanupName(blockRecipient[1]);
+    }
+  }
+
+  const recipientPatterns = [
+    /(?:awarded|presented|issued|granted)\s+to\s*[:\-]?\s*([A-Z][A-Za-z'.,\-\s]{2,80})/i,
+    /(?:participant|student|member|recipient|name)\s*[:\-]\s*([A-Z][A-Za-z'.,\-\s]{2,80})/i,
+    /this certifies that\s+([A-Z][A-Za-z'.,\-\s]{2,80})/i,
+    /completed by\s*[:\-]?\s*([A-Z][A-Za-z'.,\-\s]{2,80})/i
+  ];
+
+  if (!extracted.recipientName) {
+    for (const pattern of recipientPatterns) {
+      const match = compact.match(pattern);
+      if (match && match[1]) {
+        extracted.recipientName = cleanupName(match[1]);
+        if (extracted.recipientName) {
+          break;
+        }
+      }
+    }
+  }
+
+  const courseWorkLineIdx = lines.findIndex((line) => /\bcompleted\s+all\s+course\s+work\s+in\b/i.test(line));
+  if (courseWorkLineIdx >= 0) {
+    const classParts = [];
+    for (let i = courseWorkLineIdx + 1; i < Math.min(courseWorkLineIdx + 6, lines.length); i += 1) {
+      const candidateLine = lines[i];
+      if (/\(\s*\d+(?:\.\d+)?\s*hours?\s*\)/i.test(candidateLine)) {
+        break;
+      }
+      if (/\b(log\s+number|date|location|director)\b/i.test(candidateLine)) {
+        break;
+      }
+      if (/^[A-Z]{2,6}-\d{2,4}-[A-Z0-9]{2,8}-\d{4}\b/i.test(candidateLine)) {
+        break;
+      }
+      classParts.push(candidateLine);
+    }
+
+    if (classParts.length) {
+      extracted.trainingClassName = toSingleLine(classParts.join(' '));
+    }
+  }
+
+  if (!extracted.trainingClassName) {
+    const classBlock = multiline.match(/completed\s+all\s+course\s+work\s+in\s*\n+([\s\S]{0,180}?)\n+\(?\s*\d+(?:\.\d+)?\s*hours?\s*\)?/i);
+    if (classBlock && classBlock[1]) {
+      extracted.trainingClassName = toSingleLine(classBlock[1]);
+    }
+  }
+
+  const classPatterns = [
+    /(?:course|class|training|program)\s*(?:title|name)?\s*[:\-]\s*([^\n]{3,120})/i,
+    /has successfully completed\s+([^\n]{3,120})/i,
+    /successful completion of\s+([^\n]{3,120})/i,
+    /successfully completed\s+([^\n]{3,120})/i
+  ];
+
+  if (!extracted.trainingClassName) {
+    for (const pattern of classPatterns) {
+      const match = compact.match(pattern);
+      if (match && match[1]) {
+        const candidate = normalizeWhitespace(match[1]).replace(/\s+(on|dated?)\s+.*$/i, '').trim();
+        if (candidate && !/^\d/.test(candidate)) {
+          extracted.trainingClassName = candidate;
+          break;
+        }
+      }
+    }
+  }
+
+  const hoursPatterns = [
+    /total\s*(?:training\s*)?hours?\s*[:\-]?\s*(\d+(?:\.\d+)?)/i,
+    /(\d+(?:\.\d+)?)\s*(?:clock\s*)?(?:hours?|hrs?)\b/i,
+    /hours\s*completed\s*[:\-]?\s*(\d+(?:\.\d+)?)/i
+  ];
+
+  for (const pattern of hoursPatterns) {
+    const match = compact.match(pattern);
+    const hours = match && match[1] ? toSafeNumber(match[1]) : null;
+    if (hours !== null) {
+      extracted.hoursLogged = hours;
+      break;
+    }
+  }
+
+  const mfriIdDirectMatch = compact.match(/\b([A-Z]{2,6}-\d{2,4}-[A-Z0-9]{2,8}-\d{4})\b/i);
+  if (mfriIdDirectMatch && mfriIdDirectMatch[1]) {
+    extracted.courseIdentifier = mfriIdDirectMatch[1].toUpperCase();
+  }
+
+  const idPatterns = [
+    /(?:course|class|program)\s*(?:id|number|no\.?|#)\s*[:\-]?\s*([A-Z0-9][A-Z0-9\-_/]{2,30})/i,
+    /(?:certificate|log)\s*(?:id|number|no\.?|#)\s*[:\-]?\s*([A-Z0-9][A-Z0-9\-_/]{2,30})/i
+  ];
+
+  if (!extracted.courseIdentifier) {
+    for (const pattern of idPatterns) {
+      const match = compact.match(pattern);
+      if (match && match[1]) {
+        extracted.courseIdentifier = match[1].trim();
+        break;
+      }
+    }
+  }
+
+  const logMatch = compact.match(/\blog\s*(?:number|no\.?|#)\s*[:\-]?\s*([A-Z0-9\-_/]{2,30})/i);
+  if (logMatch && logMatch[1]) {
+    extracted.logNumber = logMatch[1].trim();
+  }
+
+  const datePatterns = [
+    /(?:completion|course|class|issued?|date)\s*(?:date)?\s*[:\-]\s*([A-Za-z]{3,9}\s+\d{1,2},\s+\d{2,4})/i,
+    /(?:completion|course|class|issued?|date)\s*(?:date)?\s*[:\-]\s*(\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4})/i,
+    /\b([A-Za-z]{3,9}\s+\d{1,2},\s+\d{2,4})\b/,
+    /\b(\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4})\b/
+  ];
+
+  for (const pattern of datePatterns) {
+    const match = compact.match(pattern);
+    if (!match || !match[1]) {
+      continue;
+    }
+
+    const parsedDate = tryParseDate(match[1]);
+    if (parsedDate) {
+      extracted.courseDate = parsedDate.toISOString();
+      extracted.courseDateText = match[1].trim();
+      break;
+    }
+  }
+
+  const mfriMarkers = [
+    /\bthis\s+certificate\s+awarded\s+to\b/i,
+    /\bhas\s+passed\s+all\s+examinations\b/i,
+    /\bcompleted\s+all\s+course\s+work\s+in\b/i,
+    /\blog\s+number\b/i,
+    /\b[a-z]{2,6}-\d{2,4}-[a-z0-9]{2,8}-\d{4}\b/i
+  ];
+  const markerHits = mfriMarkers.reduce((count, pattern) => (pattern.test(compact) ? count + 1 : count), 0);
+  extracted.isLikelyMfri = markerHits >= 2;
+
+  return extracted;
+};
+
+const extractCertificateText = async (file) => {
+  if (!file) {
+    throw new Error('Certificate file is required.');
+  }
+
+  const mimeType = (file.mimetype || '').toLowerCase();
+  const textChunks = [];
+  const buffer = file.buffer || (file.path ? await fsPromises.readFile(file.path) : null);
+
+  if (!buffer) {
+    throw new Error('Unable to read the uploaded certificate.');
+  }
+
+  if (mimeType === 'application/pdf') {
+    try {
+      const parsedPdf = await pdfParse(buffer);
+      if (parsedPdf && parsedPdf.text) {
+        textChunks.push(parsedPdf.text);
+      }
+    } catch (pdfErr) {
+      console.warn('PDF text parse failed, falling back to OCR:', pdfErr.message);
+    }
+  }
+
+  const shouldTryOcr = mimeType.startsWith('image/') || normalizeWhitespace(textChunks.join(' ')).length < 80;
+  if (shouldTryOcr) {
+    try {
+      const ocrResult = await Tesseract.recognize(buffer, 'eng');
+      const ocrText = ocrResult && ocrResult.data ? ocrResult.data.text : '';
+      if (ocrText) {
+        textChunks.push(ocrText);
+      }
+    } catch (ocrErr) {
+      console.warn('OCR parse failed:', ocrErr.message);
+    }
+  }
+
+  const combinedText = textChunks
+    .map((chunk) => (chunk || '').toString())
+    .join('\n')
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n');
+
+  if (!normalizeWhitespace(combinedText)) {
+    throw new Error('Unable to read text from certificate. Try a clearer PDF/image.');
+  }
+
+  return combinedText;
+};
+
 const uploadCertificate = (req, res, next) => {
   upload.single('certificateFile')(req, res, (err) => {
     if (!err) {
@@ -414,6 +749,7 @@ router.get('/manage-certificates', isAuthenticated, hasRole(certificateManagerRo
   try {
     const trainingClasses = await TrainingClass.find({ isActive: true }).sort('name');
     let selectedUser = null;
+    const canCreateTrainingClass = req.user.isAdmin || (req.user.roles && req.user.roles.includes('Training Officer'));
 
     if (req.query.selected && mongoose.Types.ObjectId.isValid(req.query.selected)) {
       selectedUser = await User.findById(req.query.selected).select('displayName email roles firstName middleName lastName');
@@ -423,6 +759,7 @@ router.get('/manage-certificates', isAuthenticated, hasRole(certificateManagerRo
       user: req.user,
       trainingClasses,
       selectedUser,
+      canCreateTrainingClass,
       error: req.query.error,
       success: req.query.success
     });
@@ -519,6 +856,11 @@ router.post('/certificates/extract', isAuthenticated, hasRole(certificateManager
 
       const text = await extractCertificateText(req.file);
       const parsed = parseCertificateFields(text);
+
+      if (!parsed.isLikelyMfri && (!parsed.recipientName || !parsed.trainingClassName)) {
+        throw new Error('Certificate format does not match a supported MFRI certificate. Please upload manually and fill in details.');
+      }
+
       const { rawText, ...extracted } = parsed;
 
       res.json({
@@ -888,6 +1230,69 @@ router.post('/class/add', isAuthenticated, isTrainingOfficer, async (req, res) =
   } catch (err) {
     console.error('Error adding training class:', err);
     res.status(500).render('error', { message: 'Error adding training class' });
+  }
+});
+
+router.post('/classes/quick-add', isAuthenticated, hasRole(certificateManagerRoles), async (req, res) => {
+  try {
+    const canCreate = req.user.isAdmin || (req.user.roles && req.user.roles.includes('Training Officer'));
+    if (!canCreate) {
+      return res.status(403).json({
+        success: false,
+        error: 'Only Training Officers can create new classes.'
+      });
+    }
+
+    const name = (req.body.name || '').trim();
+    const description = (req.body.description || '').trim();
+    const hoursValueRaw = req.body.hoursValue;
+    const hoursValue = hoursValueRaw === '' || hoursValueRaw == null ? 0 : Number(hoursValueRaw);
+
+    if (!name) {
+      return res.status(400).json({ success: false, error: 'Class name is required.' });
+    }
+
+    if (!Number.isFinite(hoursValue) || hoursValue < 0) {
+      return res.status(400).json({ success: false, error: 'Hours must be 0 or greater.' });
+    }
+
+    const existingClass = await TrainingClass.findOne({ name: new RegExp(`^${escapeRegex(name)}$`, 'i') });
+    if (existingClass) {
+      return res.status(409).json({
+        success: false,
+        error: 'A class with this name already exists.',
+        class: {
+          id: existingClass._id,
+          name: existingClass.name,
+          hoursValue: existingClass.hoursValue
+        }
+      });
+    }
+
+    const trainingClass = new TrainingClass({
+      name,
+      description,
+      hoursValue,
+      createdBy: req.user._id,
+      isActive: true
+    });
+
+    await trainingClass.save();
+
+    return res.json({
+      success: true,
+      class: {
+        id: trainingClass._id,
+        name: trainingClass.name,
+        hoursValue: trainingClass.hoursValue
+      }
+    });
+  } catch (err) {
+    console.error('Error creating training class from certificate workflow:', err);
+    return res.status(500).json({
+      success: false,
+      error: 'Unable to create class right now.'
+    });
   }
 });
 

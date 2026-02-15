@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
 
+
 // Import models
 const Qualification = require('../models/Qualification');
 const UserQualification = require('../models/UserQualification');
@@ -42,19 +43,15 @@ const isTrainingOfficer = (req, res, next) => {
   });
 };
 
-// QUALIFICATION DEFINITION ROUTES (TRAINING OFFICER)
-
-// Manage qualifications page
+// Manage qualifications page (Training Officer)
 router.get('/manage', isAuthenticated, isTrainingOfficer, async (req, res) => {
   try {
     const qualifications = await Qualification.find({})
       .populate('requiredClasses')
       .sort('name');
-    
     const trainingClasses = await TrainingClass.find({ isActive: true }).sort('name');
-    
-    res.render('manage-qualifications', { 
-      user: req.user, 
+    res.render('manage-qualifications', {
+      user: req.user,
       qualifications,
       trainingClasses,
       error: req.query.error,
@@ -66,30 +63,48 @@ router.get('/manage', isAuthenticated, isTrainingOfficer, async (req, res) => {
   }
 });
 
+
+// Find & Start Qualifications page
+router.get('/find', isAuthenticated, async (req, res) => {
+  try {
+    const availableQualifications = await Qualification.find({ isActive: true })
+      .populate('requiredClasses');
+    res.render('find-qualifications', {
+      user: req.user,
+      availableQualifications
+    });
+  } catch (err) {
+    console.error('Error loading available qualifications:', err);
+    res.status(500).render('error', { message: 'Error loading available qualifications' });
+  }
+});
+
+
 // Add qualification
 router.post('/add', isAuthenticated, isTrainingOfficer, async (req, res) => {
   try {
-    const { name, description, requiredClasses } = req.body;
-    
+    const { name, description } = req.body;
+    let { requiredClasses } = req.body;
+
     // Validate input
     if (!name) {
       return res.redirect('/qualifications/manage?error=Qualification name is required');
     }
-    
     if (!requiredClasses || (Array.isArray(requiredClasses) && requiredClasses.length === 0)) {
       return res.redirect('/qualifications/manage?error=At least one required class must be selected');
     }
-    
+    // If requiredClasses is a string with commas, split it into an array
+    if (typeof requiredClasses === 'string') {
+      requiredClasses = requiredClasses.includes(',') ? requiredClasses.split(',').map(s => s.trim()) : [requiredClasses];
+    }
     // Create qualification
     const qualification = new Qualification({
       name,
       description,
-      requiredClasses: Array.isArray(requiredClasses) ? requiredClasses : [requiredClasses],
+      requiredClasses,
       createdBy: req.user._id
     });
-    
     await qualification.save();
-    
     res.redirect('/qualifications/manage?success=Qualification created successfully');
   } catch (err) {
     console.error('Error creating qualification:', err);
@@ -125,35 +140,41 @@ router.get('/edit/:id', isAuthenticated, isTrainingOfficer, async (req, res) => 
 // Update qualification
 router.post('/update/:id', isAuthenticated, isTrainingOfficer, async (req, res) => {
   try {
-    const { name, description, requiredClasses, isActive } = req.body;
-    
+    const { name, description, isActive } = req.body;
+    let { requiredClasses } = req.body;
+
     // Validate input
     if (!name) {
       return res.redirect(`/qualifications/edit/${req.params.id}?error=Qualification name is required`);
     }
-    
+
     if (!requiredClasses || (Array.isArray(requiredClasses) && requiredClasses.length === 0)) {
       return res.redirect(`/qualifications/edit/${req.params.id}?error=At least one required class must be selected`);
     }
-    
+
+    // If requiredClasses is a string with commas, split it into an array
+    if (typeof requiredClasses === 'string') {
+      requiredClasses = requiredClasses.includes(',') ? requiredClasses.split(',').map(s => s.trim()) : [requiredClasses];
+    }
+
     // Update qualification
     const qualification = await Qualification.findById(req.params.id);
-    
+
     if (!qualification) {
       return res.status(404).render('error', { message: 'Qualification not found' });
     }
-    
+
     qualification.name = name;
     qualification.description = description;
-    qualification.requiredClasses = Array.isArray(requiredClasses) ? requiredClasses : [requiredClasses];
+    qualification.requiredClasses = requiredClasses;
     qualification.isActive = isActive === 'true';
     qualification.updatedAt = new Date();
-    
+
     await qualification.save();
-    
+
     // Update user qualifications based on the changes
     await updateUserQualificationsForChangedDefinition(qualification._id);
-    
+
     res.redirect(`/qualifications/edit/${req.params.id}?success=Qualification updated successfully`);
   } catch (err) {
     console.error('Error updating qualification:', err);

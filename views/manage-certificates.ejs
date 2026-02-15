@@ -18,7 +18,8 @@
       data-selected-user-first="<%= selectedUser ? selectedUser.firstName : '' %>"
       data-selected-user-middle="<%= selectedUser ? selectedUser.middleName : '' %>"
       data-selected-user-last="<%= selectedUser ? selectedUser.lastName : '' %>"
-      data-selected-user-roles="<%= selectedUser && selectedUser.roles ? selectedUser.roles.join('|') : '' %>">
+      data-selected-user-roles="<%= selectedUser && selectedUser.roles ? selectedUser.roles.join('|') : '' %>"
+      data-can-create-class="<%= canCreateTrainingClass ? 'true' : 'false' %>">
     <div class="row mb-4">
       <div class="col">
         <h1>Manage Training Certificates</h1>
@@ -111,6 +112,10 @@
                   <option value="<%= trainingClass._id %>"><%= trainingClass.name %></option>
                 <% }); %>
               </select>
+              <div class="small mt-2 d-none" id="trainingClassSuggestion">
+                <span id="trainingClassSuggestionText" class="text-warning"></span>
+                <button type="button" class="btn btn-link btn-sm p-0 ml-2 d-none" id="openCreateClassModalBtn">Add this class</button>
+              </div>
             </div>
             <div class="form-group col-md-3">
               <label for="startDate">Start Date</label>
@@ -194,6 +199,10 @@
                   <option value="<%= trainingClass._id %>"><%= trainingClass.name %></option>
                 <% }); %>
               </select>
+              <div class="small mt-2 d-none" id="editTrainingClassSuggestion">
+                <span id="editTrainingClassSuggestionText" class="text-warning"></span>
+                <button type="button" class="btn btn-link btn-sm p-0 ml-2 d-none" id="editOpenCreateClassModalBtn">Add this class</button>
+              </div>
             </div>
             <div class="form-row">
               <div class="form-group col-md-6">
@@ -230,6 +239,64 @@
             <button type="submit" class="btn btn-primary">Save Changes</button>
           </div>
         </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="createTrainingClassModal" tabindex="-1" role="dialog" aria-labelledby="createTrainingClassModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="createTrainingClassModalLabel">Add Training Class</h5>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
+        <form id="createTrainingClassForm">
+          <div class="modal-body">
+            <div class="form-group">
+              <label for="createClassName">Class Name</label>
+              <input type="text" class="form-control" id="createClassName" required maxlength="200">
+            </div>
+            <div class="form-group">
+              <label for="createClassHours">Default Hours</label>
+              <input type="number" class="form-control" id="createClassHours" min="0" step="0.5" value="0">
+            </div>
+            <div class="form-group mb-0">
+              <label for="createClassDescription">Description (optional)</label>
+              <textarea class="form-control" id="createClassDescription" rows="3" maxlength="1000"></textarea>
+            </div>
+            <div class="small mt-2 text-muted" id="createClassStatus"></div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-primary" id="createClassSubmitButton">Save Class</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="possibleRecipientsModal" tabindex="-1" role="dialog" aria-labelledby="possibleRecipientsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="possibleRecipientsModalLabel">Possible Recipient Matches</h5>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
+        <div class="modal-body">
+          <p class="mb-2">Detected recipient: <strong id="possibleRecipientDetectedName">—</strong></p>
+          <p class="text-muted small">Select a member below if this certificate used a middle name or slightly different spelling.</p>
+          <div id="possibleRecipientsList" class="list-group"></div>
+          <div id="possibleRecipientsEmpty" class="alert alert-warning mt-3 d-none mb-0">
+            No close matches found. Please select the recipient manually.
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+        </div>
       </div>
     </div>
   </div>

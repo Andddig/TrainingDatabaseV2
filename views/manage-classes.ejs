@@ -63,12 +63,13 @@
                   <label>Prerequisites (Classes that must be completed first)</label>
                   <div class="prerequisites-container">
                     <% if (trainingClasses && trainingClasses.length > 0) { %>
-                      <select name="prerequisites" multiple class="form-control" id="prerequisites">
-                        <% trainingClasses.forEach(classItem => { %>
-                          <option value="<%= classItem._id %>"><%= classItem.name %></option>
-                        <% }); %>
-                      </select>
-                      <small class="form-text text-muted">Hold Ctrl/Cmd to select multiple prerequisites. Order matters - list them in the order they should be completed.</small>
+                      <div class="custom-prereq-dropdown">
+                        <input type="text" class="form-control" id="prereqSearch" placeholder="Search and add prerequisites..." autocomplete="off">
+                        <div class="dropdown-menu w-100" id="prereqDropdown" style="max-height:200px; overflow-y:auto;"></div>
+                        <div id="prereqTags" class="mt-2"></div>
+                        <input type="hidden" name="prerequisites" id="prerequisites">
+                      </div>
+                      <small class="form-text text-muted">Select all classes that must be completed directly before this one. Only list immediate prerequisites.</small>
                     <% } else { %>
                       <p class="text-muted">No other classes available to set as prerequisites.</p>
                     <% } %>
@@ -152,17 +153,104 @@
   
   <%- include('./partials/footer') %>
   <%- include('./partials/scripts') %>
-  
   <script>
-    $(document).ready(function() {
+    // Prerequisite tag-style dropdown logic
+    const allPrereqOptions = [
+      <% if (trainingClasses && trainingClasses.length > 0) { %>
+        <% trainingClasses.forEach(classItem => { %>
+          { id: '<%= classItem._id %>', name: '<%= classItem.name.replace(/'/g, "&#39;") %>' },
+        <% }); %>
+      <% } %>
+    ];
+    let selectedPrereqs = [];
+
+    function renderPrereqTags() {
+      const tagsDiv = document.getElementById('prereqTags');
+      tagsDiv.innerHTML = '';
+      selectedPrereqs.forEach(prereq => {
+        const tag = document.createElement('span');
+        tag.className = 'badge badge-primary mr-1 mb-1 prereq-tag';
+        tag.textContent = prereq.name;
+        tag.style.cursor = 'pointer';
+        tag.title = 'Remove';
+        tag.onclick = function() {
+          selectedPrereqs = selectedPrereqs.filter(p => p.id !== prereq.id);
+          renderPrereqTags();
+          updatePrereqInput();
+        };
+        tagsDiv.appendChild(tag);
+      });
+      updatePrereqInput();
+    }
+
+    function updatePrereqInput() {
+      document.getElementById('prerequisites').value = selectedPrereqs.map(p => p.id).join(',');
+    }
+
+    function filterDropdownOptions(query) {
+      const lower = query.toLowerCase();
+      return allPrereqOptions.filter(opt =>
+        opt.name.toLowerCase().includes(lower) && !selectedPrereqs.some(p => p.id === opt.id)
+      );
+    }
+
+    function showDropdown(options) {
+      const dropdown = document.getElementById('prereqDropdown');
+      dropdown.innerHTML = '';
+      if (options.length === 0) {
+        dropdown.style.display = 'none';
+        return;
+      }
+      options.forEach(opt => {
+        const item = document.createElement('a');
+        item.className = 'dropdown-item';
+        item.textContent = opt.name;
+        item.style.cursor = 'pointer';
+        item.onclick = function() {
+          selectedPrereqs.push(opt);
+          renderPrereqTags();
+          document.getElementById('prereqSearch').value = '';
+          dropdown.style.display = 'none';
+        };
+        dropdown.appendChild(item);
+      });
+      dropdown.style.display = 'block';
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
       // Toggle Add Class form
       $('#addClassBtn').click(function() {
         $('#addClassForm').slideDown();
       });
-      
+
+      // Cancel button
       $('#cancelAddBtn').click(function() {
         $('#addClassForm').slideUp();
       });
+
+      // Prereq search logic
+      const searchInput = document.getElementById('prereqSearch');
+      const dropdown = document.getElementById('prereqDropdown');
+      searchInput.addEventListener('input', function() {
+        const val = searchInput.value.trim();
+        if (val.length === 0) {
+          dropdown.style.display = 'none';
+          return;
+        }
+        const filtered = filterDropdownOptions(val);
+        showDropdown(filtered);
+      });
+      searchInput.addEventListener('focus', function() {
+        if (searchInput.value.trim().length > 0) {
+          showDropdown(filterDropdownOptions(searchInput.value.trim()));
+        }
+      });
+      document.addEventListener('click', function(e) {
+        if (!searchInput.contains(e.target) && !dropdown.contains(e.target)) {
+          dropdown.style.display = 'none';
+        }
+      });
+      renderPrereqTags();
     });
   </script>
 </body>

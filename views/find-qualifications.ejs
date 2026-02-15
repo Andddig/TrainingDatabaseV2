@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Find & Start Qualifications</title>
+    <link rel="stylesheet" href="/css/bootstrap.min.css">
+    <link rel="stylesheet" href="/css/font-awesome.min.css">
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+    <%- include('./partials/header', { user }) %>
+    <div class="container mt-4">
+        <div class="row mb-4">
+            <div class="col">
+                <h1><i class="fas fa-list-alt text-primary mr-2"></i>Find & Start Qualifications</h1>
+                <p class="lead">Browse all available qualification paths and start your journey.</p>
+            </div>
+        </div>
+        <div class="card mt-4">
+            <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="fas fa-list-alt mr-2"></i>Available Qualifications</h5>
+                <div class="input-group w-25">
+                    <input type="text" id="qualificationSearch" class="form-control form-control-sm" placeholder="Search qualifications...">
+                    <div class="input-group-append">
+                        <span class="input-group-text"><i class="fas fa-search"></i></span>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="row" id="qualificationGrid">
+                    <% availableQualifications.forEach(qual => { %>
+                        <div class="col-md-6 mb-4 qualification-item">
+                            <div class="card h-100 qualification-card">
+                                <div class="card-header bg-light">
+                                    <h5 class="mb-0 d-flex justify-content-between align-items-center">
+                                        <span><%= qual.name %></span>
+                                        <span class="badge badge-info">
+                                            <%= qual.requiredClasses.length %> Classes Required
+                                        </span>
+                                    </h5>
+                                </div>
+                                <div class="card-body">
+                                    <div class="qualification-details">
+                                        <p class="qualification-description"><%= qual.description %></p>
+                                        <div class="qualification-stats mb-3">
+                                            <div class="row">
+                                                <div class="col-6">
+                                                    <small class="text-muted d-block">Estimated Total Hours</small>
+                                                    <strong>
+                                                        <i class="fas fa-clock text-info mr-1"></i>
+                                                        <%= qual.requiredClasses.reduce((acc, cls) => acc + (cls.estimatedHours || 0), 0) %> hours
+                                                    </strong>
+                                                </div>
+                                                <div class="col-6">
+                                                    <small class="text-muted d-block">Typical Completion Time</small>
+                                                    <strong>
+                                                        <i class="fas fa-calendar-alt text-info mr-1"></i>
+                                                        <%= Math.ceil(qual.requiredClasses.length / 2) %> months
+                                                    </strong>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="required-classes mb-3">
+                                            <h6 class="mb-2"><i class="fas fa-graduation-cap text-secondary mr-2"></i>Required Classes:</h6>
+                                            <div class="class-list-container" style="max-height: 200px; overflow-y: auto;">
+                                                <ul class="list-group list-group-flush">
+                                                    <% qual.requiredClasses.forEach(classItem => { %>
+                                                        <li class="list-group-item py-2 px-3">
+                                                            <div class="d-flex justify-content-between align-items-center">
+                                                                <div>
+                                                                    <strong><%= classItem.name %></strong>
+                                                                    <% if (classItem.estimatedHours) { %>
+                                                                        <small class="text-muted ml-2">
+                                                                            (<%= classItem.estimatedHours %> hours)
+                                                                        </small>
+                                                                    <% } %>
+                                                                </div>
+                                                                <button class="btn btn-sm btn-outline-info find-class-btn"
+                                                                        data-toggle="modal" 
+                                                                        data-target="#findClassModal"
+                                                                        data-class-name="<%= classItem.name %>">
+                                                                    <i class="fas fa-search mr-1"></i>Find
+                                                                </button>
+                                                            </div>
+                                                        </li>
+                                                    <% }); %>
+                                                </ul>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="text-center mt-3">
+                                        <a href="/qualifications/start/<%= qual._id %>" class="btn btn-success btn-lg">
+                                            <i class="fas fa-play-circle mr-2"></i>Start This Qualification
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    <% }); %>
+                </div>
+            </div>
+        </div>
+    </div>
+    <%- include('./partials/footer') %>
+    <script src="/js/jquery.min.js"></script>
+    <script src="/js/bootstrap.bundle.min.js"></script>
+    <script>
+        $(document).ready(function() {
+            const searchInput = document.getElementById('qualificationSearch');
+            if (searchInput) {
+                searchInput.addEventListener('input', function(e) {
+                    const searchTerm = e.target.value.toLowerCase();
+                    const qualifications = document.querySelectorAll('.qualification-item');
+                    qualifications.forEach(qual => {
+                        const title = qual.querySelector('.card-header h5').textContent.toLowerCase();
+                        const description = qual.querySelector('.qualification-description').textContent.toLowerCase();
+                        const classes = Array.from(qual.querySelectorAll('.class-list-container strong'))
+                            .map(el => el.textContent.toLowerCase());
+                        const matches = title.includes(searchTerm) || 
+                                      description.includes(searchTerm) ||
+                                      classes.some(c => c.includes(searchTerm));
+                        qual.style.display = matches ? '' : 'none';
+                    });
+                });
+            }
+        });
+    </script>
+</body>
+</html>

@@ -41,6 +41,26 @@
   const presearchCertificateInput = document.getElementById('presearchCertificateFile');
   const presearchUploadButton = document.getElementById('presearchUploadButton');
   const presearchStatus = document.getElementById('presearchStatus');
+  const canCreateTrainingClass = app.dataset.canCreateClass === 'true';
+  const trainingClassSuggestion = document.getElementById('trainingClassSuggestion');
+  const trainingClassSuggestionText = document.getElementById('trainingClassSuggestionText');
+  const openCreateClassModalBtn = document.getElementById('openCreateClassModalBtn');
+  const editTrainingClassSuggestion = document.getElementById('editTrainingClassSuggestion');
+  const editTrainingClassSuggestionText = document.getElementById('editTrainingClassSuggestionText');
+  const editOpenCreateClassModalBtn = document.getElementById('editOpenCreateClassModalBtn');
+  const createClassModalElement = document.getElementById('createTrainingClassModal');
+  const createClassModal = createClassModalElement ? $(createClassModalElement) : null;
+  const createClassForm = document.getElementById('createTrainingClassForm');
+  const createClassNameInput = document.getElementById('createClassName');
+  const createClassHoursInput = document.getElementById('createClassHours');
+  const createClassDescriptionInput = document.getElementById('createClassDescription');
+  const createClassStatus = document.getElementById('createClassStatus');
+  const createClassSubmitButton = document.getElementById('createClassSubmitButton');
+  const possibleRecipientsModalElement = document.getElementById('possibleRecipientsModal');
+  const possibleRecipientsModal = possibleRecipientsModalElement ? $(possibleRecipientsModalElement) : null;
+  const possibleRecipientDetectedName = document.getElementById('possibleRecipientDetectedName');
+  const possibleRecipientsList = document.getElementById('possibleRecipientsList');
+  const possibleRecipientsEmpty = document.getElementById('possibleRecipientsEmpty');
 
   const defaultAutofillMessage = autofillStatus ? autofillStatus.textContent : '';
   const defaultEditAutofillMessage = editAutofillStatus ? editAutofillStatus.textContent : '';
@@ -68,6 +88,7 @@
   let currentSearchResults = [];
   let highlightedResultIndex = -1;
   let presearchProcessing = false;
+  let createClassTargetContext = 'add';
   let searchDebounce;
 
   function escapeHtml(value) {
@@ -199,6 +220,97 @@
     return bestScore >= 45 ? bestOption : null;
   }
 
+  function setSuggestionVisibility(container, textElement, buttonElement, message, showButton) {
+    if (!container || !textElement) {
+      return;
+    }
+
+    if (!message) {
+      container.classList.add('d-none');
+      textElement.textContent = '';
+      if (buttonElement) {
+        buttonElement.classList.add('d-none');
+      }
+      return;
+    }
+
+    textElement.textContent = message;
+    container.classList.remove('d-none');
+    if (buttonElement) {
+      if (showButton) {
+        buttonElement.classList.remove('d-none');
+      } else {
+        buttonElement.classList.add('d-none');
+      }
+    }
+  }
+
+  function clearClassSuggestion(contextType) {
+    if (contextType === 'edit') {
+      setSuggestionVisibility(editTrainingClassSuggestion, editTrainingClassSuggestionText, editOpenCreateClassModalBtn, '');
+      return;
+    }
+    setSuggestionVisibility(trainingClassSuggestion, trainingClassSuggestionText, openCreateClassModalBtn, '');
+  }
+
+  function showClassSuggestion(context, className, extractedHours) {
+    if (!context || !className) {
+      return;
+    }
+
+    context.pendingClassName = className;
+    if (typeof extractedHours === 'number' && !Number.isNaN(extractedHours)) {
+      context.pendingHours = extractedHours;
+    }
+
+    const message = `Class not found: ${className}.`;
+    const buttonEnabled = canCreateTrainingClass && !!context.openCreateButton;
+    setSuggestionVisibility(context.suggestionContainer, context.suggestionTextElement, context.openCreateButton, message, buttonEnabled);
+  }
+
+  function addOrUpdateTrainingClassOption(selectElement, classInfo) {
+    if (!selectElement || !classInfo || !classInfo.id) {
+      return null;
+    }
+
+    const classId = String(classInfo.id);
+    const className = classInfo.name || classInfo.label || '';
+    if (!className) {
+      return null;
+    }
+
+    let option = Array.from(selectElement.options).find((existing) => existing.value === classId);
+    if (!option) {
+      option = document.createElement('option');
+      option.value = classId;
+      selectElement.appendChild(option);
+    }
+    option.textContent = className;
+
+    const normalizedName = normalizeForMatch(className, { keepNumbers: true });
+    if (selectElement === trainingClassSelect) {
+      const existingCacheItem = trainingClassOptionsCache.find((entry) => entry.option.value === classId);
+      if (existingCacheItem) {
+        existingCacheItem.option = option;
+        existingCacheItem.normalized = normalizedName;
+      } else {
+        trainingClassOptionsCache.push({ option, normalized: normalizedName });
+      }
+    }
+
+    return option;
+  }
+
+  function setCreateClassStatus(message, level) {
+    if (!createClassStatus) {
+      return;
+    }
+
+    createClassStatus.classList.remove('text-success', 'text-danger', 'text-warning', 'text-info', 'text-muted');
+    createClassStatus.classList.add(level ? `text-${level}` : 'text-muted');
+    createClassStatus.textContent = message || '';
+  }
+
   function getUserNameVariantSet(user) {
     const variants = new Set();
     if (!user) {
@@ -229,6 +341,176 @@
     return variants;
   }
 
+  function parseNameParts(nameValue) {
+    const normalized = normalizeForMatch(nameValue || '');
+    const parts = normalized.split(' ').filter(Boolean);
+    return {
+      normalized,
+      first: parts[0] || '',
+      last: parts.length > 1 ? parts[parts.length - 1] : '',
+      middle: parts.length > 2 ? parts.slice(1, -1) : []
+    };
+  }
+
+  function scoreCandidateUser(searchName, user) {
+    const search = parseNameParts(searchName);
+    const userFirst = normalizeForMatch(user.firstName || '');
+    const userLast = normalizeForMatch(user.lastName || '');
+    const userDisplay = normalizeForMatch(user.displayName || '');
+    const variants = getUserNameVariantSet(user);
+
+    let score = 0;
+    if (search.normalized && variants.has(search.normalized)) {
+      return 100;
+    }
+
+    if (search.first && userFirst && search.first === userFirst) {
+      score += 45;
+    }
+    if (search.last && userLast && search.last === userLast) {
+      score += 45;
+    }
+
+    if (search.first && search.last && userDisplay.includes(`${search.first} ${search.last}`)) {
+      score += 20;
+    }
+
+    if (search.middle.length && userDisplay.includes(search.middle.join(' '))) {
+      score += 5;
+    }
+
+    if (score < 60 && search.normalized) {
+      const searchWords = search.normalized.split(' ').filter(Boolean);
+      const variantScores = Array.from(variants).map((variant) => {
+        const variantWords = variant.split(' ').filter(Boolean);
+        const overlap = searchWords.filter((word) => variantWords.includes(word)).length;
+        return searchWords.length ? (overlap / searchWords.length) * 70 : 0;
+      });
+      const bestVariant = variantScores.length ? Math.max(...variantScores) : 0;
+      score = Math.max(score, bestVariant);
+    }
+
+    return Math.min(100, score);
+  }
+
+  async function findPossibleUsersByName(nameString) {
+    const search = parseNameParts(nameString);
+    if (!search.normalized) {
+      return [];
+    }
+
+    const queries = [
+      nameString,
+      `${search.first} ${search.last}`.trim(),
+      search.last,
+      search.first
+    ].filter((value, index, arr) => value && arr.indexOf(value) === index);
+
+    const candidateMap = new Map();
+    for (const query of queries) {
+      try {
+        const response = await fetch(`/training/users/search?q=${encodeURIComponent(query)}`);
+        if (!response.ok) {
+          continue;
+        }
+        const users = await response.json();
+        if (!Array.isArray(users)) {
+          continue;
+        }
+        users.forEach((user) => {
+          if (user && user.id) {
+            candidateMap.set(String(user.id), user);
+          }
+        });
+      } catch (err) {
+        console.error('Candidate search failed for query:', query, err);
+      }
+    }
+
+    return Array.from(candidateMap.values())
+      .map((user) => ({ user, score: scoreCandidateUser(nameString, user) }))
+      .filter((entry) => entry.score >= 60)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 6);
+  }
+
+  function selectMatchedRecipient(user, extracted) {
+    if (!user) {
+      return;
+    }
+
+    queuedAutofillData = extracted;
+    queuedAutofillSource = 'presearch';
+
+    setAutofillStatus(presearchStatus, `Found: ${user.displayName}. Loading profile...`, 'success');
+
+    setSelectedUser({
+      id: user.id,
+      displayName: user.displayName || '',
+      email: user.email || '',
+      roles: user.roles || [],
+      firstName: user.firstName || '',
+      middleName: user.middleName || '',
+      lastName: user.lastName || ''
+    });
+
+    if (presearchCertificateInput) {
+      presearchCertificateInput.value = '';
+      updateFileLabel(presearchCertificateInput);
+    }
+
+    setTimeout(() => {
+      resetAutofillStatus(presearchStatus, defaultPresearchStatusMessage);
+      presearchProcessing = false;
+      if (presearchUploadButton) {
+        presearchUploadButton.disabled = false;
+      }
+    }, 2000);
+  }
+
+  function showPossibleRecipientModal(detectedName, candidates, extracted) {
+    if (!possibleRecipientsModal || !possibleRecipientsList || !possibleRecipientDetectedName) {
+      return;
+    }
+
+    possibleRecipientDetectedName.textContent = detectedName || 'Unknown';
+    possibleRecipientsList.innerHTML = '';
+    const list = Array.isArray(candidates) ? candidates : [];
+
+    if (!list.length) {
+      if (possibleRecipientsEmpty) {
+        possibleRecipientsEmpty.classList.remove('d-none');
+      }
+      possibleRecipientsModal.modal('show');
+      return;
+    }
+
+    if (possibleRecipientsEmpty) {
+      possibleRecipientsEmpty.classList.add('d-none');
+    }
+
+    list.forEach(({ user, score }) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'list-group-item list-group-item-action';
+      button.innerHTML = `
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <div class="font-weight-bold">${escapeHtml(user.displayName || '')}</div>
+            <div class="small text-muted">${escapeHtml(user.email || '')}</div>
+          </div>
+          <span class="badge badge-info">${Math.round(score)}% match</span>
+        </div>`;
+      button.addEventListener('click', () => {
+        possibleRecipientsModal.modal('hide');
+        selectMatchedRecipient(user, extracted);
+      });
+      possibleRecipientsList.appendChild(button);
+    });
+
+    possibleRecipientsModal.modal('show');
+  }
+
   function applyAutofillResult(extracted, context) {
     if (!context || !context.statusElement) {
       return;
@@ -249,10 +531,16 @@
       if (match) {
         context.trainingClassSelect.value = match.value;
         messages.push(`Matched class: ${match.textContent || match.innerText || match.label || match.value}`);
+        if (context.contextType) {
+          clearClassSuggestion(context.contextType);
+        }
       } else {
         messages.push(`Suggested class: ${extracted.trainingClassName}`);
         statusLevel = 'warning';
+        showClassSuggestion(context, extracted.trainingClassName, extracted.hoursLogged);
       }
+    } else if (context.contextType) {
+      clearClassSuggestion(context.contextType);
     }
 
     if (context.startDateInput && extracted.courseDate) {
@@ -327,6 +615,151 @@
     setAutofillStatus(context.statusElement, messages.join(' • '), statusLevel);
   }
 
+  function openCreateClassModal(contextType) {
+    if (!createClassModal || !createClassForm) {
+      return;
+    }
+
+    const context = contextType === 'edit' ? editAutofillContext : addAutofillContext;
+    createClassTargetContext = contextType;
+
+    if (createClassNameInput) {
+      createClassNameInput.value = context.pendingClassName || '';
+    }
+    if (createClassHoursInput) {
+      createClassHoursInput.value = context.pendingHours != null ? context.pendingHours : 0;
+    }
+    if (createClassDescriptionInput) {
+      createClassDescriptionInput.value = '';
+    }
+
+    setCreateClassStatus('', 'muted');
+    createClassModal.modal('show');
+  }
+
+  const addAutofillContext = {
+    contextType: 'add',
+    trainingClassSelect,
+    startDateInput,
+    endDateInput,
+    hoursInput,
+    courseNumberInput,
+    statusElement: autofillStatus,
+    suggestionContainer: trainingClassSuggestion,
+    suggestionTextElement: trainingClassSuggestionText,
+    openCreateButton: openCreateClassModalBtn,
+    pendingClassName: '',
+    pendingHours: null
+  };
+
+  const editAutofillContext = {
+    contextType: 'edit',
+    trainingClassSelect: editTrainingClass,
+    startDateInput: editStartDate,
+    endDateInput: editEndDate,
+    hoursInput: editHoursLogged,
+    courseNumberInput: editCourseNumberInput,
+    statusElement: editAutofillStatus,
+    suggestionContainer: editTrainingClassSuggestion,
+    suggestionTextElement: editTrainingClassSuggestionText,
+    openCreateButton: editOpenCreateClassModalBtn,
+    pendingClassName: '',
+    pendingHours: null
+  };
+
+  if (openCreateClassModalBtn) {
+    openCreateClassModalBtn.addEventListener('click', () => openCreateClassModal('add'));
+  }
+
+  if (editOpenCreateClassModalBtn) {
+    editOpenCreateClassModalBtn.addEventListener('click', () => openCreateClassModal('edit'));
+  }
+
+  if (createClassForm) {
+    createClassForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+
+      if (!canCreateTrainingClass) {
+        setCreateClassStatus('Only Training Officers can create classes.', 'danger');
+        return;
+      }
+
+      const name = createClassNameInput ? createClassNameInput.value.trim() : '';
+      const hoursValue = createClassHoursInput ? createClassHoursInput.value : '';
+      const description = createClassDescriptionInput ? createClassDescriptionInput.value.trim() : '';
+
+      if (!name) {
+        setCreateClassStatus('Class name is required.', 'danger');
+        return;
+      }
+
+      if (createClassSubmitButton) {
+        createClassSubmitButton.disabled = true;
+      }
+      setCreateClassStatus('Creating class...', 'info');
+
+      try {
+        const response = await fetch('/training/classes/quick-add', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            name,
+            hoursValue,
+            description
+          })
+        });
+
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || !payload.success) {
+          if (response.status === 409 && payload.class) {
+            addOrUpdateTrainingClassOption(trainingClassSelect, payload.class);
+            addOrUpdateTrainingClassOption(editTrainingClass, payload.class);
+            const targetContext = createClassTargetContext === 'edit' ? editAutofillContext : addAutofillContext;
+            if (targetContext.trainingClassSelect) {
+              targetContext.trainingClassSelect.value = String(payload.class.id);
+            }
+            clearClassSuggestion(createClassTargetContext);
+            setCreateClassStatus('Class already existed and has been selected.', 'warning');
+            if (createClassModal) {
+              setTimeout(() => createClassModal.modal('hide'), 700);
+            }
+            return;
+          }
+
+          throw new Error(payload.error || 'Unable to create class.');
+        }
+
+        addOrUpdateTrainingClassOption(trainingClassSelect, payload.class);
+        addOrUpdateTrainingClassOption(editTrainingClass, payload.class);
+
+        const targetContext = createClassTargetContext === 'edit' ? editAutofillContext : addAutofillContext;
+        if (targetContext.trainingClassSelect) {
+          targetContext.trainingClassSelect.value = String(payload.class.id);
+        }
+        clearClassSuggestion(createClassTargetContext);
+
+        if (targetContext.statusElement) {
+          setAutofillStatus(targetContext.statusElement, `Created and selected class: ${payload.class.name}`, 'success');
+        }
+
+        setCreateClassStatus('Class created successfully.', 'success');
+        if (createClassModal) {
+          setTimeout(() => createClassModal.modal('hide'), 700);
+        }
+      } catch (err) {
+        console.error('Create class failed:', err);
+        setCreateClassStatus(err.message || 'Unable to create class.', 'danger');
+      } finally {
+        if (createClassSubmitButton) {
+          createClassSubmitButton.disabled = false;
+        }
+      }
+    });
+  }
+
   async function extractCertificateData(file) {
     const formData = new FormData();
     formData.append('certificateFile', file);
@@ -374,17 +807,13 @@
       updateFileLabel(addCertificateFileInput);
 
       if (!addCertificateFileInput.files || !addCertificateFileInput.files.length) {
+        clearClassSuggestion('add');
         resetAutofillStatus(autofillStatus, defaultAutofillMessage);
         return;
       }
 
       handleAutofillFromFile(addCertificateFileInput, {
-        trainingClassSelect,
-        startDateInput,
-        endDateInput,
-        hoursInput,
-        courseNumberInput,
-        statusElement: autofillStatus
+        ...addAutofillContext
       });
     });
   }
@@ -394,17 +823,13 @@
       updateFileLabel(editCertificateFileInput);
 
       if (!editCertificateFileInput.files || !editCertificateFileInput.files.length) {
+        clearClassSuggestion('edit');
         resetAutofillStatus(editAutofillStatus, defaultEditAutofillMessage);
         return;
       }
 
       handleAutofillFromFile(editCertificateFileInput, {
-        trainingClassSelect: editTrainingClass,
-        startDateInput: editStartDate,
-        endDateInput: editEndDate,
-        hoursInput: editHoursLogged,
-        courseNumberInput: editCourseNumberInput,
-        statusElement: editAutofillStatus
+        ...editAutofillContext
       });
     });
   }
@@ -643,6 +1068,7 @@
     }
 
     resetAutofillStatus(editAutofillStatus, defaultEditAutofillMessage);
+    clearClassSuggestion('edit');
 
     if (editCertificateCurrentFile) {
       if (item.certificateUrl) {
@@ -788,6 +1214,7 @@
       lastName: user.lastName || ''
     };
 
+    clearClassSuggestion('add');
     resetAutofillStatus(autofillStatus, defaultAutofillMessage);
 
     if (noCertificatesNotice) {
@@ -803,14 +1230,7 @@
     loadCertificates(selectedUserId);
 
     if (queuedAutofillData && queuedAutofillSource) {
-      applyAutofillResult(queuedAutofillData, {
-        trainingClassSelect,
-        startDateInput,
-        endDateInput,
-        hoursInput,
-        courseNumberInput,
-        statusElement: autofillStatus
-      });
+      applyAutofillResult(queuedAutofillData, addAutofillContext);
       queuedAutofillData = null;
       queuedAutofillSource = null;
     }
@@ -833,10 +1253,25 @@
       }
 
       const normalizedSearch = normalizeForMatch(nameString);
+      const searchParts = parseNameParts(nameString);
       let bestMatch = null;
       let highestScore = 0;
 
       users.forEach((user) => {
+        const score = scoreCandidateUser(nameString, user);
+        if (score > highestScore) {
+          highestScore = score;
+          bestMatch = user;
+        }
+
+        const userFirst = normalizeForMatch(user.firstName || '');
+        const userLast = normalizeForMatch(user.lastName || '');
+        if (searchParts.first && searchParts.last && userFirst === searchParts.first && userLast === searchParts.last) {
+          bestMatch = user;
+          highestScore = 100;
+          return;
+        }
+
         const userVariants = getUserNameVariantSet(user);
         if (userVariants.has(normalizedSearch)) {
           bestMatch = user;
@@ -857,7 +1292,7 @@
         });
       });
 
-      return highestScore >= 60 ? bestMatch : null;
+      return highestScore >= 70 ? bestMatch : null;
     } catch (err) {
       console.error('Error finding user by name:', err);
       return null;
@@ -901,34 +1336,22 @@
         const matchedUser = await findUserByName(extracted.recipientName);
 
         if (!matchedUser) {
+          const candidateMatches = await findPossibleUsersByName(extracted.recipientName);
+          if (candidateMatches.length) {
+            setAutofillStatus(presearchStatus, `No exact match for "${extracted.recipientName}". Please choose a close match.`, 'warning');
+            showPossibleRecipientModal(extracted.recipientName, candidateMatches, extracted);
+            presearchProcessing = false;
+            presearchUploadButton.disabled = false;
+            return;
+          }
+
           setAutofillStatus(presearchStatus, `No matching user found for "${extracted.recipientName}".`, 'danger');
           presearchProcessing = false;
           presearchUploadButton.disabled = false;
           return;
         }
 
-        queuedAutofillData = extracted;
-        queuedAutofillSource = 'presearch';
-
-        setAutofillStatus(presearchStatus, `Found: ${matchedUser.displayName}. Loading profile...`, 'success');
-
-        setSelectedUser({
-          id: matchedUser.id,
-          displayName: matchedUser.displayName || '',
-          email: matchedUser.email || '',
-          roles: matchedUser.roles || [],
-          firstName: matchedUser.firstName || '',
-          middleName: matchedUser.middleName || '',
-          lastName: matchedUser.lastName || ''
-        });
-
-        presearchCertificateInput.value = '';
-        updateFileLabel(presearchCertificateInput);
-        setTimeout(() => {
-          resetAutofillStatus(presearchStatus, defaultPresearchStatusMessage);
-          presearchProcessing = false;
-          presearchUploadButton.disabled = false;
-        }, 2000);
+        selectMatchedRecipient(matchedUser, extracted);
       } catch (err) {
         console.error('Presearch upload failed:', err);
         setAutofillStatus(presearchStatus, err.message || 'Unable to process certificate.', 'danger');
