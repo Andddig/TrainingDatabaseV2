@@ -1,3 +1,5 @@
+// Roles allowed to manage certificates
+const certificateManagerRoles = ['Training Officer', 'Approver'];
 const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
@@ -91,7 +93,6 @@ const canReviewSubmissions = (currentUser) => {
 };
 
 // Ensure uploads directory exists
-const uploadsDir = path.join(__dirname, '..', 'public', 'uploads');
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }

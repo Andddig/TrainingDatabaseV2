@@ -41,17 +41,6 @@ connectWithRetry();
 // Load User model
 console.log('Initializing User model...');
 const User = require('./models/User');
-const User = mongoose.model('User', new mongoose.Schema({
-  microsoftId: String,
-  displayName: String,
-  firstName: String,
-  middleName: { type: String, default: '' },
-  lastName: String,
-  email: String,
-  isAdmin: { type: Boolean, default: false },
-  createdAt: { type: Date, default: Date.now },
-  roles: { type: [String], default: ['Student'] }
-}));
 
 // Import UserQualification model
 const UserQualification = require('./models/UserQualification');
@@ -134,10 +123,7 @@ passport.use(new MicrosoftStrategy({
   scope: ['user.read']
 }, async (accessToken, refreshToken, profile, done) => {
   try {
-    const user = await User.findOrCreateFromMicrosoft(profile);
-      
-    // Check if user exists
-    let user = await User.findOne({ microsoftId: profile.id });
+    let user = await User.findOrCreateFromMicrosoft(profile);
 
     const rawFirst = profile.name && profile.name.givenName ? profile.name.givenName : '';
     const rawLast = profile.name && profile.name.familyName ? profile.name.familyName : '';
@@ -303,10 +289,8 @@ app.get('/dashboard', isAuthenticated, async (req, res) => {
 });
 
 app.get('/user-management', isAuthenticated, isAdmin, async (req, res) => {
-app.get('/user-management', isAuthenticated, isAdmin, async (req, res) => {
   try {
     const users = await User.find().sort('displayName');
-    res.render('user-management', { 
     res.render('user-management', { 
       user: req.user, 
       users,
@@ -582,7 +566,6 @@ app.post('/demo/remove-attendant-qualification', isAuthenticated, async (req, re
 
 // User role management
 app.post(['/user-management/update-user/:id', '/admin/update-user/:id'], isAuthenticated, isAdmin, async (req, res) => {
-app.post('/user-management/update-user/:id', isAuthenticated, isAdmin, async (req, res) => {
   try {
     const { roles } = req.body;
     const user = await User.findById(req.params.id);
@@ -594,7 +577,6 @@ app.post('/user-management/update-user/:id', isAuthenticated, isAdmin, async (re
     user.roles = normalizeRoles(roles);
     await user.save();
     
-    res.redirect('/user-management?success=User roles updated successfully');
     res.redirect('/user-management?success=User roles updated successfully');
   } catch (err) {
     console.error('Error updating user roles:', err);
@@ -625,7 +607,6 @@ app.post(['/user-management/update-user-details/:id', '/admin/update-user-detail
   } catch (err) {
     console.error('Error updating user details:', err);
     res.redirect('/user-management?error=' + encodeURIComponent(err.message || 'Error updating user details'));
-    res.redirect('/user-management?error=' + encodeURIComponent(err.message || 'Error updating user roles'));
   }
 });
 
@@ -666,7 +647,6 @@ app.post('/user-management/update-user-details/:id', isAuthenticated, isAdmin, a
 
 // Toggle admin status
 app.post(['/user-management/toggle-admin/:id', '/admin/toggle-admin/:id'], isAuthenticated, isAdmin, async (req, res) => {
-app.post('/user-management/toggle-admin/:id', isAuthenticated, isAdmin, async (req, res) => {
   try {
     const user = await User.findById(req.params.id);
     
@@ -677,17 +657,14 @@ app.post('/user-management/toggle-admin/:id', isAuthenticated, isAdmin, async (r
     // Don't allow removing admin from main admin account
     if (user.email === 'adavis@bvar19.org' && user.isAdmin) {
       return res.redirect('/user-management?error=Cannot remove admin status from the primary administrator');
-      return res.redirect('/user-management?error=Cannot remove admin status from the primary administrator');
     }
     
     user.isAdmin = !user.isAdmin;
     await user.save();
     
     res.redirect('/user-management?success=Admin status updated successfully');
-    res.redirect('/user-management?success=Admin status updated successfully');
   } catch (err) {
     console.error('Error toggling admin status:', err);
-    res.redirect('/user-management?error=' + encodeURIComponent(err.message || 'Error updating admin status'));
     res.redirect('/user-management?error=' + encodeURIComponent(err.message || 'Error updating admin status'));
   }
 });
