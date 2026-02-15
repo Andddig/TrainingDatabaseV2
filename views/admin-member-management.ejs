@@ -14,7 +14,7 @@
     <div class="row mb-4">
       <div class="col">
         <h1>Member Certificate Management</h1>
-        <p>Search members, edit account details, and upload training certificates on their behalf.</p>
+        <p>Search members and upload training certificates on their behalf.</p>
       </div>
     </div>
 
@@ -99,62 +99,7 @@
 
     <% if (selectedUser) { %>
       <div class="row">
-        <div class="col-lg-6 mb-4">
-          <div class="card h-100">
-            <div class="card-header bg-info text-white">
-              <h5 class="mb-0">Edit Member</h5>
-            </div>
-            <div class="card-body">
-              <form action="/training/admin/members/<%= selectedUser._id %>/update" method="POST">
-                <div class="form-group">
-                  <label for="displayName">Display Name</label>
-                  <input type="text" class="form-control" id="displayName" name="displayName" value="<%= selectedUser.displayName || '' %>" required>
-                </div>
-                <div class="form-row">
-                  <div class="form-group col-md-6">
-                    <label for="firstName">First Name</label>
-                    <input type="text" class="form-control" id="firstName" name="firstName" value="<%= selectedUser.firstName || '' %>">
-                  </div>
-                  <div class="form-group col-md-6">
-                    <label for="lastName">Last Name</label>
-                    <input type="text" class="form-control" id="lastName" name="lastName" value="<%= selectedUser.lastName || '' %>">
-                  </div>
-                </div>
-                <div class="form-group">
-                  <label for="email">Email</label>
-                  <input type="email" class="form-control" id="email" name="email" value="<%= selectedUser.email || '' %>" required>
-                </div>
-
-                <div class="form-group">
-                  <label>Roles</label>
-                  <div class="custom-control custom-checkbox">
-                    <input type="checkbox" class="custom-control-input" id="role-student" name="roles" value="Student" <%= selectedUser.roles && selectedUser.roles.includes('Student') ? 'checked' : '' %>>
-                    <label class="custom-control-label" for="role-student">Student</label>
-                  </div>
-                  <div class="custom-control custom-checkbox">
-                    <input type="checkbox" class="custom-control-input" id="role-approver" name="roles" value="Approver" <%= selectedUser.roles && selectedUser.roles.includes('Approver') ? 'checked' : '' %>>
-                    <label class="custom-control-label" for="role-approver">Approver</label>
-                  </div>
-                  <div class="custom-control custom-checkbox">
-                    <input type="checkbox" class="custom-control-input" id="role-officer" name="roles" value="Training Officer" <%= selectedUser.roles && selectedUser.roles.includes('Training Officer') ? 'checked' : '' %>>
-                    <label class="custom-control-label" for="role-officer">Training Officer</label>
-                  </div>
-                </div>
-
-                <div class="custom-control custom-checkbox mb-3">
-                  <input type="checkbox" class="custom-control-input" id="isAdmin" name="isAdmin" <%= selectedUser.isAdmin ? 'checked' : '' %>>
-                  <label class="custom-control-label" for="isAdmin">Admin</label>
-                </div>
-
-                <button type="submit" class="btn btn-info">
-                  <i class="fas fa-save mr-1"></i> Save Member
-                </button>
-              </form>
-            </div>
-          </div>
-        </div>
-
-        <div class="col-lg-6 mb-4">
+        <div class="col-lg-12 mb-4">
           <div class="card h-100">
             <div class="card-header bg-success text-white">
               <h5 class="mb-0">Upload Certificate For <%= selectedUser.displayName %></h5>

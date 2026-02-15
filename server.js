@@ -226,10 +226,10 @@ app.get('/dashboard', isAuthenticated, async (req, res) => {
   }
 });
 
-app.get('/admin', isAuthenticated, isAdmin, async (req, res) => {
+app.get('/user-management', isAuthenticated, isAdmin, async (req, res) => {
   try {
     const users = await User.find().sort('displayName');
-    res.render('admin', { 
+    res.render('user-management', { 
       user: req.user, 
       users,
       error: req.query.error,
@@ -237,17 +237,21 @@ app.get('/admin', isAuthenticated, isAdmin, async (req, res) => {
     });
   } catch (err) {
     console.error('Error fetching users:', err);
-    res.status(500).render('error', { message: 'Error loading admin dashboard' });
+    res.status(500).render('error', { message: 'Error loading user management dashboard' });
   }
 });
 
+app.get('/admin', isAuthenticated, isAdmin, (req, res) => {
+  res.redirect('/user-management');
+});
+
 // Add a single user (manual entry)
-app.post('/admin/add-user', isAuthenticated, isAdmin, async (req, res) => {
+app.post(['/user-management/add-user', '/admin/add-user'], isAuthenticated, isAdmin, async (req, res) => {
   try {
     const { email, displayName, firstName, lastName, roles, isAdmin: adminFlag } = req.body;
 
     if (!email || email.trim() === '') {
-      return res.redirect('/admin?error=Email is required');
+      return res.redirect('/user-management?error=Email is required');
     }
 
     const normalizedEmail = email.trim().toLowerCase();
@@ -266,7 +270,7 @@ app.post('/admin/add-user', isAuthenticated, isAdmin, async (req, res) => {
       existingUser.roles = resolvedRoles;
       existingUser.isAdmin = adminFlag === 'true' || adminFlag === 'on';
       await existingUser.save();
-      return res.redirect('/admin?success=User updated successfully');
+      return res.redirect('/user-management?success=User updated successfully');
     }
 
     await User.create({
@@ -278,18 +282,18 @@ app.post('/admin/add-user', isAuthenticated, isAdmin, async (req, res) => {
       isAdmin: adminFlag === 'true' || adminFlag === 'on'
     });
 
-    res.redirect('/admin?success=User added successfully');
+    res.redirect('/user-management?success=User added successfully');
   } catch (err) {
     console.error('Error adding user:', err);
-    res.redirect('/admin?error=' + encodeURIComponent(err.message || 'Error adding user'));
+    res.redirect('/user-management?error=' + encodeURIComponent(err.message || 'Error adding user'));
   }
 });
 
 // Import users from CSV
-app.post('/admin/import-users', isAuthenticated, isAdmin, csvUpload.single('csvFile'), async (req, res) => {
+app.post(['/user-management/import-users', '/admin/import-users'], isAuthenticated, isAdmin, csvUpload.single('csvFile'), async (req, res) => {
   try {
     if (!req.file || !req.file.buffer) {
-      return res.redirect('/admin?error=CSV file is required');
+      return res.redirect('/user-management?error=CSV file is required');
     }
 
     const csvText = req.file.buffer.toString('utf8');
@@ -342,10 +346,10 @@ app.post('/admin/import-users', isAuthenticated, isAdmin, csvUpload.single('csvF
       }
     }
 
-    res.redirect(`/admin?success=Import complete. Created ${createdCount}, Updated ${updatedCount}`);
+    res.redirect(`/user-management?success=Import complete. Created ${createdCount}, Updated ${updatedCount}`);
   } catch (err) {
     console.error('Error importing users:', err);
-    res.redirect('/admin?error=' + encodeURIComponent(err.message || 'Error importing users'));
+    res.redirect('/user-management?error=' + encodeURIComponent(err.message || 'Error importing users'));
   }
 });
 
@@ -499,7 +503,7 @@ app.post('/demo/remove-attendant-qualification', isAuthenticated, async (req, re
 });
 
 // User role management
-app.post('/admin/update-user/:id', isAuthenticated, isAdmin, async (req, res) => {
+app.post(['/user-management/update-user/:id', '/admin/update-user/:id'], isAuthenticated, isAdmin, async (req, res) => {
   try {
     const { roles } = req.body;
     const user = await User.findById(req.params.id);
@@ -508,18 +512,44 @@ app.post('/admin/update-user/:id', isAuthenticated, isAdmin, async (req, res) =>
       return res.status(404).render('error', { message: 'User not found' });
     }
     
-    user.roles = Array.isArray(roles) ? roles : [roles];
+    user.roles = normalizeRoles(roles);
     await user.save();
     
-    res.redirect('/admin?success=User roles updated successfully');
+    res.redirect('/user-management?success=User roles updated successfully');
   } catch (err) {
     console.error('Error updating user roles:', err);
-    res.redirect('/admin?error=' + encodeURIComponent(err.message || 'Error updating user roles'));
+    res.redirect('/user-management?error=' + encodeURIComponent(err.message || 'Error updating user roles'));
+  }
+});
+
+app.post(['/user-management/update-user-details/:id', '/admin/update-user-details/:id'], isAuthenticated, isAdmin, async (req, res) => {
+  try {
+    const { firstName, lastName, displayName } = req.body;
+    const user = await User.findById(req.params.id);
+
+    if (!user) {
+      return res.status(404).render('error', { message: 'User not found' });
+    }
+
+    const trimmedFirstName = (firstName || '').trim();
+    const trimmedLastName = (lastName || '').trim();
+    const trimmedDisplayName = (displayName || '').trim();
+
+    user.firstName = trimmedFirstName;
+    user.lastName = trimmedLastName;
+    user.displayName = trimmedDisplayName || [trimmedFirstName, trimmedLastName].filter(Boolean).join(' ').trim() || user.email;
+
+    await user.save();
+
+    res.redirect('/user-management?success=User details updated successfully');
+  } catch (err) {
+    console.error('Error updating user details:', err);
+    res.redirect('/user-management?error=' + encodeURIComponent(err.message || 'Error updating user details'));
   }
 });
 
 // Toggle admin status
-app.post('/admin/toggle-admin/:id', isAuthenticated, isAdmin, async (req, res) => {
+app.post(['/user-management/toggle-admin/:id', '/admin/toggle-admin/:id'], isAuthenticated, isAdmin, async (req, res) => {
   try {
     const user = await User.findById(req.params.id);
     
@@ -529,21 +559,21 @@ app.post('/admin/toggle-admin/:id', isAuthenticated, isAdmin, async (req, res) =
     
     // Don't allow removing admin from main admin account
     if (user.email === 'adavis@bvar19.org' && user.isAdmin) {
-      return res.redirect('/admin?error=Cannot remove admin status from the primary administrator');
+      return res.redirect('/user-management?error=Cannot remove admin status from the primary administrator');
     }
     
     user.isAdmin = !user.isAdmin;
     await user.save();
     
-    res.redirect('/admin?success=Admin status updated successfully');
+    res.redirect('/user-management?success=Admin status updated successfully');
   } catch (err) {
     console.error('Error toggling admin status:', err);
-    res.redirect('/admin?error=' + encodeURIComponent(err.message || 'Error updating admin status'));
+    res.redirect('/user-management?error=' + encodeURIComponent(err.message || 'Error updating admin status'));
   }
 });
 
 // Delete user
-app.post('/admin/delete-user/:id', isAuthenticated, isAdmin, async (req, res) => {
+app.post(['/user-management/delete-user/:id', '/admin/delete-user/:id'], isAuthenticated, isAdmin, async (req, res) => {
   try {
     const user = await User.findById(req.params.id);
 
@@ -553,15 +583,15 @@ app.post('/admin/delete-user/:id', isAuthenticated, isAdmin, async (req, res) =>
 
     // Don't allow deleting the primary admin account
     if (user.email === 'adavis@bvar19.org') {
-      return res.redirect('/admin?error=Cannot delete the primary administrator');
+      return res.redirect('/user-management?error=Cannot delete the primary administrator');
     }
 
     await User.deleteOne({ _id: user._id });
 
-    res.redirect('/admin?success=User deleted successfully');
+    res.redirect('/user-management?success=User deleted successfully');
   } catch (err) {
     console.error('Error deleting user:', err);
-    res.redirect('/admin?error=' + encodeURIComponent(err.message || 'Error deleting user'));
+    res.redirect('/user-management?error=' + encodeURIComponent(err.message || 'Error deleting user'));
   }
 });
 
