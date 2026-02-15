@@ -285,49 +285,6 @@ router.get('/admin/members', isAuthenticated, isAdmin, async (req, res) => {
   }
 });
 
-router.post('/admin/members/:id/update', isAuthenticated, isAdmin, async (req, res) => {
-  try {
-    const selectedUserId = req.params.id;
-    const { displayName, firstName, lastName, email, roles, isAdmin: isAdminFlag } = req.body;
-    const userToUpdate = await User.findById(selectedUserId);
-
-    if (!userToUpdate) {
-      return res.redirect('/training/admin/members?error=User not found');
-    }
-
-    const normalizedEmail = (email || '').trim().toLowerCase();
-    if (!normalizedEmail) {
-      return res.redirect(`/training/admin/members?selectedUser=${selectedUserId}&error=Email is required`);
-    }
-
-    const existingEmailUser = await User.findOne({
-      email: normalizedEmail,
-      _id: { $ne: userToUpdate._id }
-    });
-    if (existingEmailUser) {
-      return res.redirect(`/training/admin/members?selectedUser=${selectedUserId}&error=Email is already in use by another user`);
-    }
-
-    const nextIsAdmin = isAdminFlag === 'on' || isAdminFlag === 'true';
-    if (userToUpdate.email === 'adavis@bvar19.org' && !nextIsAdmin) {
-      return res.redirect(`/training/admin/members?selectedUser=${selectedUserId}&error=Cannot remove admin status from the primary administrator`);
-    }
-
-    userToUpdate.displayName = (displayName || '').trim() || [firstName, lastName].filter(Boolean).join(' ').trim() || normalizedEmail;
-    userToUpdate.firstName = (firstName || '').trim();
-    userToUpdate.lastName = (lastName || '').trim();
-    userToUpdate.email = normalizedEmail;
-    userToUpdate.roles = normalizeRoles(roles);
-    userToUpdate.isAdmin = nextIsAdmin;
-
-    await userToUpdate.save();
-    res.redirect(`/training/admin/members?selectedUser=${selectedUserId}&success=User details updated successfully`);
-  } catch (err) {
-    console.error('Error updating user details:', err);
-    res.redirect(`/training/admin/members?selectedUser=${req.params.id}&error=${encodeURIComponent(err.message || 'Error updating user details')}`);
-  }
-});
-
 router.post('/admin/members/:id/upload-certificate', isAuthenticated, isAdmin, uploadCertificateForAdmin, async (req, res) => {
   try {
     const selectedUserId = req.params.id;
