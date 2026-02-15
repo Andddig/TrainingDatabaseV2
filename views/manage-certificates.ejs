@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Manage Training Certificates - Training Database</title>
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <%- include('./partials/header', { user }) %>
+  
+  <div id="manageCertificatesApp"
+       class="container mt-4"
+       data-selected-user-id="<%= selectedUser ? selectedUser._id : '' %>"
+       data-selected-user-name="<%= selectedUser ? selectedUser.displayName : '' %>"
+      data-selected-user-email="<%= selectedUser ? selectedUser.email : '' %>"
+      data-selected-user-first="<%= selectedUser ? selectedUser.firstName : '' %>"
+      data-selected-user-middle="<%= selectedUser ? selectedUser.middleName : '' %>"
+      data-selected-user-last="<%= selectedUser ? selectedUser.lastName : '' %>"
+      data-selected-user-roles="<%= selectedUser && selectedUser.roles ? selectedUser.roles.join('|') : '' %>">
+    <div class="row mb-4">
+      <div class="col">
+        <h1>Manage Training Certificates</h1>
+        <p class="text-muted mb-0">Upload certificates on behalf of members or update existing records. Certificates added here are approved immediately.</p>
+      </div>
+    </div>
+
+    <% if (error) { %>
+      <div class="alert alert-danger"><%= error %></div>
+    <% } %>
+
+    <% if (success) { %>
+      <div class="alert alert-success"><%= success %></div>
+    <% } %>
+
+    <div class="card mb-4">
+      <div class="card-header bg-info text-white">
+        <h5 class="mb-0">Auto-Select From Certificate</h5>
+      </div>
+      <div class="card-body">
+        <p class="text-muted">Upload a certificate to automatically identify the recipient and pre-fill the form.</p>
+        <div class="form-row align-items-end">
+          <div class="form-group col-md-6 mb-3">
+            <label for="presearchCertificateFile">Certificate (PDF or Image)</label>
+            <div class="custom-file">
+              <input type="file" class="custom-file-input" id="presearchCertificateFile" accept=".pdf,.jpg,.jpeg,.png">
+              <label class="custom-file-label" for="presearchCertificateFile">Choose file...</label>
+            </div>
+          </div>
+          <div class="form-group col-md-3 mb-3">
+            <button type="button" class="btn btn-info btn-block" id="presearchUploadButton">
+              <i class="fas fa-magic mr-1"></i>Find Recipient
+            </button>
+          </div>
+        </div>
+        <div class="small text-muted" id="presearchStatus">Upload a certificate to auto-select the recipient.</div>
+      </div>
+    </div>
+
+    <div class="card mb-4">
+      <div class="card-header bg-primary text-white">
+        <h5 class="mb-0">Find Training Recipient</h5>
+      </div>
+      <div class="card-body">
+        <div class="form-group position-relative mb-0">
+          <label for="userSearchInput">Search by name or email</label>
+          <input type="text" class="form-control" id="userSearchInput" placeholder="Start typing to search members...">
+          <div id="userSearchResults" class="list-group position-absolute w-100 shadow-sm d-none" style="z-index: 20;"></div>
+          <small class="form-text text-muted">Type at least two characters to search.</small>
+        </div>
+      </div>
+    </div>
+
+    <div id="selectedUserCard" class="card mb-4 <%= selectedUser ? '' : 'd-none' %>">
+      <div class="card-header bg-light">
+        <h5 class="mb-0">Selected User</h5>
+      </div>
+      <div class="card-body">
+        <dl class="row mb-0">
+          <dt class="col-sm-3">Name</dt>
+          <dd class="col-sm-9" id="selectedUserName"><%= selectedUser ? selectedUser.displayName : '—' %></dd>
+          <dt class="col-sm-3">First Name</dt>
+          <dd class="col-sm-9" id="selectedUserFirst"><%= selectedUser ? (selectedUser.firstName || '—') : '—' %></dd>
+          <dt class="col-sm-3">Middle Name</dt>
+          <dd class="col-sm-9" id="selectedUserMiddle"><%= selectedUser ? (selectedUser.middleName || '—') : '—' %></dd>
+          <dt class="col-sm-3">Last Name</dt>
+          <dd class="col-sm-9" id="selectedUserLast"><%= selectedUser ? (selectedUser.lastName || '—') : '—' %></dd>
+          <dt class="col-sm-3">Email</dt>
+          <dd class="col-sm-9" id="selectedUserEmail"><%= selectedUser ? selectedUser.email : '—' %></dd>
+          <dt class="col-sm-3">Roles</dt>
+          <dd class="col-sm-9" id="selectedUserRoles"><%= selectedUser && selectedUser.roles && selectedUser.roles.length ? selectedUser.roles.join(', ') : '—' %></dd>
+        </dl>
+      </div>
+    </div>
+
+    <div id="addCertificateSection" class="card mb-4 <%= selectedUser ? '' : 'd-none' %>">
+      <div class="card-header bg-primary text-white">
+        <h5 class="mb-0">Add Certificate</h5>
+      </div>
+      <div class="card-body">
+        <p class="text-muted">Certificates uploaded here are automatically approved using your account.</p>
+        <form action="/training/certificates/add" method="POST" enctype="multipart/form-data">
+          <input type="hidden" id="selectedUserId" name="studentId" value="<%= selectedUser ? selectedUser._id : '' %>">
+          <div class="form-row">
+            <div class="form-group col-md-6">
+              <label for="trainingClass">Training Class</label>
+              <select class="form-control" id="trainingClass" name="trainingClass" required>
+                <option value="">-- Select Training Class --</option>
+                <% trainingClasses.forEach(trainingClass => { %>
+                  <option value="<%= trainingClass._id %>"><%= trainingClass.name %></option>
+                <% }); %>
+              </select>
+            </div>
+            <div class="form-group col-md-3">
+              <label for="startDate">Start Date</label>
+              <input type="date" class="form-control" id="startDate" name="startDate" required>
+            </div>
+            <div class="form-group col-md-3">
+              <label for="endDate">End Date</label>
+              <input type="date" class="form-control" id="endDate" name="endDate" required>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group col-md-4">
+              <label for="hoursLogged">Hours Completed</label>
+              <input type="number" class="form-control" id="hoursLogged" name="hoursLogged" min="0" step="0.5" required>
+            </div>
+            <div class="form-group col-md-4">
+              <label for="courseNumber">Course Number (optional)</label>
+              <input type="text" class="form-control" id="courseNumber" name="courseNumber" maxlength="100">
+            </div>
+            <div class="form-group col-md-4">
+              <label for="certificateFile">Upload Certificate (PDF or Image)</label>
+              <div class="custom-file">
+                <input type="file" class="custom-file-input" id="certificateFile" name="certificateFile" accept=".pdf,.jpg,.jpeg,.png" required>
+                <label class="custom-file-label" for="certificateFile">Choose file...</label>
+              </div>
+              <small class="form-text text-muted" id="autofillStatus">Upload a certificate to auto-fill the details when possible.</small>
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-primary"><i class="fas fa-upload mr-1"></i> Save Certificate</button>
+        </form>
+      </div>
+    </div>
+
+    <div id="userCertificatesSection" class="card <%= selectedUser ? '' : 'd-none' %>">
+      <div class="card-header bg-primary text-white">
+        <h5 class="mb-0">Existing Certificates</h5>
+      </div>
+      <div class="card-body">
+        <div id="noCertificatesNotice" class="alert alert-info mb-0">
+          Select a user to view their certificates.
+        </div>
+        <div id="certificateTableContainer" class="table-responsive d-none mt-3">
+          <table class="table table-striped" id="certificateTable">
+            <thead>
+              <tr>
+                <th>Training Class</th>
+                <th>Date Range</th>
+                <th>Hours</th>
+                <th>Course Number</th>
+                <th>Status</th>
+                <th>Certificate</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="editCertificateModal" tabindex="-1" role="dialog" aria-labelledby="editCertificateModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="editCertificateModalLabel">Edit Certificate</h5>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
+        <form id="editCertificateForm" method="POST" enctype="multipart/form-data">
+          <div class="modal-body">
+            <input type="hidden" name="redirectStudentId" id="editRedirectStudentId" value="<%= selectedUser ? selectedUser._id : '' %>">
+            <div class="form-group">
+              <label for="editTrainingClass">Training Class</label>
+              <select class="form-control" id="editTrainingClass" name="trainingClass" required>
+                <option value="">-- Select Training Class --</option>
+                <% trainingClasses.forEach(trainingClass => { %>
+                  <option value="<%= trainingClass._id %>"><%= trainingClass.name %></option>
+                <% }); %>
+              </select>
+            </div>
+            <div class="form-row">
+              <div class="form-group col-md-6">
+                <label for="editStartDate">Start Date</label>
+                <input type="date" class="form-control" id="editStartDate" name="startDate" required>
+              </div>
+              <div class="form-group col-md-6">
+                <label for="editEndDate">End Date</label>
+                <input type="date" class="form-control" id="editEndDate" name="endDate" required>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group col-md-4">
+                <label for="editHoursLogged">Hours Completed</label>
+                <input type="number" class="form-control" id="editHoursLogged" name="hoursLogged" min="0" step="0.5" required>
+              </div>
+              <div class="form-group col-md-4">
+                <label for="editCourseNumber">Course Number (optional)</label>
+                <input type="text" class="form-control" id="editCourseNumber" name="courseNumber" maxlength="100">
+              </div>
+              <div class="form-group col-md-8">
+                <label for="editCertificateFile">Replace Certificate (optional)</label>
+                <div class="custom-file">
+                  <input type="file" class="custom-file-input" id="editCertificateFile" name="certificateFile" accept=".pdf,.jpg,.jpeg,.png">
+                  <label class="custom-file-label" for="editCertificateFile">Choose file...</label>
+                </div>
+                <small class="form-text text-muted" id="editCertificateCurrentFile">Current file: Not available</small>
+                <div class="small text-muted mt-2" id="editAutofillStatus">Upload a replacement certificate to auto-fill details (optional).</div>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-primary">Save Changes</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <%- include('./partials/footer') %>
+  <%- include('./partials/scripts') %>
+  <script src="/js/manage-certificates.js"></script>
+</body>
+</html>

@@ -15,10 +15,15 @@
       <div class="col">
         <h1>Training Submission Review</h1>
       </div>
-      <div class="col-auto">
-        <a href="/training/approver/dashboard" class="btn btn-secondary">
+      <div class="col-auto d-flex flex-column flex-sm-row">
+        <a href="/training/approver/dashboard" class="btn btn-secondary mb-2 mb-sm-0 mr-sm-2">
           <i class="fas fa-arrow-left"></i> Back to List
         </a>
+        <% if (typeof canManageCertificates !== 'undefined' && canManageCertificates) { %>
+          <a href="/training/manage-certificates?selected=<%= submission.student._id %>" class="btn btn-outline-primary">
+            <i class="fas fa-id-card"></i> Manage Certificates
+          </a>
+        <% } %>
       </div>
     </div>
     
@@ -79,6 +84,10 @@
             <div class="info-row">
               <span class="info-label">Hours Logged:</span>
               <span class="info-value"><%= submission.hoursLogged %></span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Course Number:</span>
+              <span class="info-value"><%= submission.courseNumber && submission.courseNumber.trim() !== '' ? submission.courseNumber : 'Not provided' %></span>
             </div>
             <div class="info-row">
               <span class="info-label">Submitted On:</span>

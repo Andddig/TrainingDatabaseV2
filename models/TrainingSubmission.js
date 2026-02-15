@@ -23,6 +23,11 @@ const trainingSubmissionSchema = new mongoose.Schema({
     type: Number,
     required: true
   },
+  courseNumber: {
+    type: String,
+    trim: true,
+    default: ''
+  },
   certificateFile: {
     filename: String,
     originalName: String,

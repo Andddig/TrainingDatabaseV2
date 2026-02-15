@@ -447,11 +447,71 @@ async function updateUserQualificationsForApprovedSubmission(submission) {
   }
 }
 
+// Function to fully recalculate a user's qualifications based on approved submissions
+async function recalculateUserQualifications(userId) {
+  try {
+    const userQualifications = await UserQualification.find({ user: userId })
+      .populate('qualification');
+    if (userQualifications.length === 0) {
+      return;
+    }
+
+    const approvedSubmissions = await TrainingSubmission.find({
+      student: userId,
+      status: 'approved'
+    }).select('_id trainingClass approvedAt');
+
+    const submissionByClass = new Map();
+    approvedSubmissions.forEach(submission => {
+      submissionByClass.set(submission.trainingClass.toString(), submission);
+    });
+
+    for (const userQualification of userQualifications) {
+      if (!userQualification.qualification) {
+        continue;
+      }
+
+      const requiredClasses = (userQualification.qualification.requiredClasses || []).map(id => id.toString());
+      const updatedCompleted = [];
+      const updatedMissing = [];
+
+      requiredClasses.forEach(classId => {
+        const submission = submissionByClass.get(classId);
+        if (submission) {
+          updatedCompleted.push({
+            class: submission.trainingClass,
+            submission: submission._id,
+            completedDate: submission.approvedAt
+          });
+        } else {
+          updatedMissing.push(mongoose.Types.ObjectId(classId));
+        }
+      });
+
+      userQualification.completedClasses = updatedCompleted;
+      userQualification.missingClasses = updatedMissing;
+      userQualification.isComplete = updatedMissing.length === 0;
+      userQualification.earnedDate = userQualification.isComplete
+        ? (userQualification.earnedDate || new Date())
+        : null;
+      userQualification.lastUpdated = new Date();
+      userQualification.markModified('completedClasses');
+      userQualification.markModified('missingClasses');
+
+      await userQualification.save();
+    }
+  } catch (err) {
+    console.error('Error recalculating user qualifications:', err);
+  }
+}
+
 // Function to update user qualifications when a qualification definition changes
 async function updateUserQualificationsForChangedDefinition(qualificationId) {
   try {
     const qualification = await Qualification.findById(qualificationId);
-    if (!qualification) return;
+    if (!qualification) {
+      return;
+    }
     
     const userQualifications = await UserQualification.find({
       qualification: qualificationId
@@ -467,7 +527,6 @@ async function updateUserQualificationsForChangedDefinition(qualificationId) {
       userQualification.missingClasses = qualification.requiredClasses.filter(
         classId => !completedClassIds.includes(classId.toString())
       );
-      
       // Update completion status
       userQualification.isComplete = userQualification.missingClasses.length === 0;
       
@@ -531,5 +590,6 @@ router.get('/import-mfri-classes', isAuthenticated, isTrainingOfficer, async (re
 // Export the router and utility functions
 module.exports = {
   router,
-  updateUserQualificationsForApprovedSubmission
+  updateUserQualificationsForApprovedSubmission,
+  recalculateUserQualifications
 }; 

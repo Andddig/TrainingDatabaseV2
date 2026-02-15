@@ -3,57 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>BVAR19 Portal</title>
+  <title>Deprecated Landing</title>
   <link rel="stylesheet" href="/css/styles.css">
-  <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.2/dist/gsap.min.js"></script>
 </head>
 <body>
-  <!-- Splash Screen -->
-  <div id="splash-screen">
-    <div id="splash-circle"></div>
-    <div id="splash-text"></div>
+  <div class="container" style="padding: 2rem; text-align: center;">
+    <h1>Deprecated View</h1>
+    <p>The former BVAR splash landing has been archived under <code>deprecated/</code>.</p>
+    <p>Use <a href="/login">/login</a> for Microsoft sign-in.</p>
   </div>
-
-  <div class="container">
-    <header>
-      <h1>BVAR19 Portal</h1>
-      <nav>
-        <% if (user) { %>
-          <a href="/dashboard">Dashboard</a>
-          <% if (user.isAdmin) { %>
-            <a href="/admin">Admin Panel</a>
-          <% } %>
-          <a href="/logout">Logout</a>
-        <% } else { %>
-          <a href="/login">Login</a>
-        <% } %>
-      </nav>
-    </header>
-    
-    <main>
-      <div class="hero">
-        <h2>Welcome to BVAR19 Portal</h2>
-        <p>A secure platform for BVAR19.org members</p>
-        
-        <% if (!user) { %>
-          <div class="cta">
-            <a href="/login" class="btn">Login with Microsoft</a>
-          </div>
-        <% } else { %>
-          <div class="welcome-back">
-            <p>Welcome back, <%= user.displayName %>!</p>
-            <a href="/dashboard" class="btn">Go to Training Dashboard</a>
-          </div>
-        <% } %>
-      </div>
-    </main>
-    
-    <footer>
-      <p>&copy; <%= new Date().getFullYear() %> BVAR19.org. All rights reserved.</p>
-      <p>Version <%= version %></p>
-    </footer>
-  </div>
-
-  <script src="/js/splash.js"></script>
 </body>
-</html> 
+</html>

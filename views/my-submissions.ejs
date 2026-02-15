@@ -44,6 +44,7 @@
                 <thead>
                   <tr>
                     <th>Training Class</th>
+                    <th>Course Number</th>
                     <th>Date Range</th>
                     <th>Hours</th>
                     <th>Status</th>
@@ -55,6 +56,7 @@
                   <% submissions.forEach(submission => { %>
                     <tr>
                       <td><%= submission.trainingClass ? submission.trainingClass.name : 'Unknown Class' %></td>
+                      <td><%= submission.courseNumber && submission.courseNumber.trim() !== '' ? submission.courseNumber : '—' %></td>
                       <td>
                         <%= new Date(submission.startDate).toLocaleDateString() %> to 
                         <%= new Date(submission.endDate).toLocaleDateString() %>

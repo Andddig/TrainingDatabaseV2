@@ -60,6 +60,7 @@
                 <tr>
                   <th>Student</th>
                   <th>Training Class</th>
+                  <th>Course Number</th>
                   <th>Date Range</th>
                   <th>Hours</th>
                   <th>Status</th>
@@ -72,6 +73,7 @@
                   <tr>
                     <td><%= submission.student.displayName %></td>
                     <td><%= submission.trainingClass.name %></td>
+                    <td><%= submission.courseNumber && submission.courseNumber.trim() !== '' ? submission.courseNumber : '—' %></td>
                     <td>
                       <%= new Date(submission.startDate).toLocaleDateString() %> to 
                       <%= new Date(submission.endDate).toLocaleDateString() %>

@@ -5,6 +5,10 @@ const userSchema = new mongoose.Schema({
   microsoftId: String,
   displayName: String,
   firstName: String,
+  middleName: {
+    type: String,
+    default: ''
+  },
   lastName: String,
   email: {
     type: String,
@@ -58,6 +62,7 @@ userSchema.statics.findOrCreateFromMicrosoft = async function(profile) {
         microsoftId: profile.id,
         displayName: profile.displayName,
         firstName: profile.name.givenName,
+        middleName: profile.name.middleName || '',
         lastName: profile.name.familyName,
         email: profile.emails[0].value,
         isAdmin: isAdmin,

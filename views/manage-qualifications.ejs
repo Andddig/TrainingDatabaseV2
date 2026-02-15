@@ -11,6 +11,7 @@
     <script src="/js/jquery.min.js"></script>
     <script src="/js/bootstrap.bundle.min.js"></script>
     <script src="/js/sortable.min.js"></script>
+    <script src="/js/confetti.browser.min.js"></script>
     <style>
         .transfer-list {
             display: flex;
@@ -285,6 +286,22 @@
     
     <script>
       $(document).ready(function() {
+                if (typeof confetti === 'function' && document.querySelector('.alert.alert-success')) {
+                    confetti({
+                        particleCount: 110,
+                        spread: 80,
+                        origin: { y: 0.65 }
+                    });
+
+                    setTimeout(function() {
+                        confetti({
+                            particleCount: 80,
+                            spread: 60,
+                            origin: { y: 0.7 }
+                        });
+                    }, 280);
+                }
+
         // Add qualification button click handler
         $('#addQualificationBtn').on('click', function() {
           $('#addQualificationModal').modal('show');

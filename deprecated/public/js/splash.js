@@ -150,4 +150,4 @@ document.addEventListener('DOMContentLoaded', function() {
       whiteCircle.remove();
     }
   }, "-=0.5");
-}); 
+});

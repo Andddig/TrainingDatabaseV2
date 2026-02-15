@@ -14,6 +14,9 @@ const cookieParser = require('cookie-parser');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Allow secure cookies to work behind a proxy (e.g., Docker/ingress)
+app.set('trust proxy', 1);
+
 const version = '0.9.0';
 
 // MongoDB connection with retry logic
@@ -39,6 +42,7 @@ const User = mongoose.model('User', new mongoose.Schema({
   microsoftId: String,
   displayName: String,
   firstName: String,
+  middleName: { type: String, default: '' },
   lastName: String,
   email: String,
   isAdmin: { type: Boolean, default: false },
@@ -61,7 +65,7 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
       styleSrc: ["'self'", "'unsafe-inline'", "https://stackpath.bootstrapcdn.com", "https://cdnjs.cloudflare.com"],
       imgSrc: ["'self'", "data:"],
       connectSrc: ["'self'"]
@@ -89,11 +93,12 @@ app.use(session({
     crypto: {
       secret: process.env.SESSION_SECRET || 'fallback_secret_do_not_use_in_production',
     },
-    // Fallback to in-memory store if MongoDB is not available
     fallbackMemory: true
   }),
   cookie: {
-    secure: process.env.NODE_ENV === 'production',
+    secure: false, // Force HTTP-only for local/dev
+    httpOnly: true,
+    sameSite: 'lax',
     maxAge: 24 * 60 * 60 * 1000 // 1 day
   }
 }));
@@ -113,7 +118,21 @@ passport.use(new MicrosoftStrategy({
   try {
     // Check if user exists
     let user = await User.findOne({ microsoftId: profile.id });
-    
+
+    const rawFirst = profile.name && profile.name.givenName ? profile.name.givenName : '';
+    const rawLast = profile.name && profile.name.familyName ? profile.name.familyName : '';
+    const rawMiddle = (profile.name && profile.name.middleName) ||
+      (profile._json && (profile._json.middleName || profile._json.middle_name)) ||
+      '';
+    const normalizedMiddle = rawMiddle ? rawMiddle.trim() : '';
+    const normalizedFirst = rawFirst ? rawFirst.trim() : '';
+    const normalizedLast = rawLast ? rawLast.trim() : '';
+    const fallbackDisplayName = [normalizedFirst, normalizedMiddle, normalizedLast]
+      .filter(Boolean)
+      .join(' ')
+      .trim();
+    const computedDisplayName = (profile.displayName || '').trim() || fallbackDisplayName;
+
     // If not, create a new user
     if (!user) {
       // Check if this is the designated admin email
@@ -123,13 +142,36 @@ passport.use(new MicrosoftStrategy({
       
       user = await User.create({
         microsoftId: profile.id,
-        displayName: profile.displayName,
-        firstName: profile.name.givenName,
-        lastName: profile.name.familyName,
+        displayName: computedDisplayName,
+        firstName: normalizedFirst,
+        middleName: normalizedMiddle,
+        lastName: normalizedLast,
         email: profile.emails[0].value,
         isAdmin: isAdmin,
         roles: ['Student'] // Default role
       });
+    } else {
+      // Update stored name data if currently missing
+      let shouldSave = false;
+      if (normalizedMiddle && !user.middleName) {
+        user.middleName = normalizedMiddle;
+        shouldSave = true;
+      }
+      if (normalizedFirst && !user.firstName) {
+        user.firstName = normalizedFirst;
+        shouldSave = true;
+      }
+      if (normalizedLast && !user.lastName) {
+        user.lastName = normalizedLast;
+        shouldSave = true;
+      }
+      if (computedDisplayName && !user.displayName) {
+        user.displayName = computedDisplayName;
+        shouldSave = true;
+      }
+      if (shouldSave) {
+        await user.save();
+      }
     }
     
     return done(null, user);
@@ -187,7 +229,10 @@ const hasRole = (requiredRoles) => {
 
 // Routes
 app.get('/', (req, res) => {
-  res.render('index', { user: req.user, version });
+  if (req.isAuthenticated()) {
+    return res.redirect('/dashboard');
+  }
+  return res.redirect('/login');
 });
 
 app.get('/login', (req, res) => {
@@ -237,10 +282,10 @@ app.get('/dashboard', isAuthenticated, async (req, res) => {
   }
 });
 
-app.get('/admin', isAuthenticated, isAdmin, async (req, res) => {
+app.get('/user-management', isAuthenticated, isAdmin, async (req, res) => {
   try {
     const users = await User.find().sort('displayName');
-    res.render('admin', { 
+    res.render('user-management', { 
       user: req.user, 
       users,
       error: req.query.error,
@@ -402,7 +447,7 @@ app.post('/demo/remove-attendant-qualification', isAuthenticated, async (req, re
 });
 
 // User role management
-app.post('/admin/update-user/:id', isAuthenticated, isAdmin, async (req, res) => {
+app.post('/user-management/update-user/:id', isAuthenticated, isAdmin, async (req, res) => {
   try {
     const { roles } = req.body;
     const user = await User.findById(req.params.id);
@@ -414,15 +459,50 @@ app.post('/admin/update-user/:id', isAuthenticated, isAdmin, async (req, res) =>
     user.roles = Array.isArray(roles) ? roles : [roles];
     await user.save();
     
-    res.redirect('/admin?success=User roles updated successfully');
+    res.redirect('/user-management?success=User roles updated successfully');
   } catch (err) {
     console.error('Error updating user roles:', err);
-    res.redirect('/admin?error=' + encodeURIComponent(err.message || 'Error updating user roles'));
+    res.redirect('/user-management?error=' + encodeURIComponent(err.message || 'Error updating user roles'));
+  }
+});
+
+app.post('/user-management/update-user-details/:id', isAuthenticated, isAdmin, async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+
+    if (!user) {
+      return res.status(404).render('error', { message: 'User not found' });
+    }
+
+    const firstName = (req.body.firstName || '').trim();
+    const middleName = (req.body.middleName || '').trim();
+    const lastName = (req.body.lastName || '').trim();
+    let displayName = (req.body.displayName || '').trim();
+
+    if (!firstName || !lastName) {
+      return res.redirect('/user-management?error=' + encodeURIComponent('First and last name are required.'));
+    }
+
+    if (!displayName) {
+      displayName = [firstName, middleName, lastName].filter(Boolean).join(' ');
+    }
+
+    user.firstName = firstName;
+    user.middleName = middleName;
+    user.lastName = lastName;
+    user.displayName = displayName;
+
+    await user.save();
+
+    res.redirect('/user-management?success=User details updated successfully');
+  } catch (err) {
+    console.error('Error updating user details:', err);
+    res.redirect('/user-management?error=' + encodeURIComponent(err.message || 'Error updating user details'));
   }
 });
 
 // Toggle admin status
-app.post('/admin/toggle-admin/:id', isAuthenticated, isAdmin, async (req, res) => {
+app.post('/user-management/toggle-admin/:id', isAuthenticated, isAdmin, async (req, res) => {
   try {
     const user = await User.findById(req.params.id);
     
@@ -432,16 +512,16 @@ app.post('/admin/toggle-admin/:id', isAuthenticated, isAdmin, async (req, res) =
     
     // Don't allow removing admin from main admin account
     if (user.email === 'adavis@bvar19.org' && user.isAdmin) {
-      return res.redirect('/admin?error=Cannot remove admin status from the primary administrator');
+      return res.redirect('/user-management?error=Cannot remove admin status from the primary administrator');
     }
     
     user.isAdmin = !user.isAdmin;
     await user.save();
     
-    res.redirect('/admin?success=Admin status updated successfully');
+    res.redirect('/user-management?success=Admin status updated successfully');
   } catch (err) {
     console.error('Error toggling admin status:', err);
-    res.redirect('/admin?error=' + encodeURIComponent(err.message || 'Error updating admin status'));
+    res.redirect('/user-management?error=' + encodeURIComponent(err.message || 'Error updating admin status'));
   }
 });
 
