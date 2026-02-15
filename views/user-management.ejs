@@ -18,6 +18,9 @@
         <a href="/demo-portal" class="btn btn-info">
           <i class="fas fa-flask"></i> Demo Portal
         </a>
+        <a href="/training/admin/members" class="btn btn-primary ml-2">
+          <i class="fas fa-users-cog"></i> Member Certificates
+        </a>
       </div>
     </div>
     
@@ -28,6 +31,69 @@
     <% if (locals.success) { %>
       <div class="alert alert-success"><%= success %></div>
     <% } %>
+
+    <div class="card mb-4">
+      <div class="card-header bg-secondary text-white">
+        <h5 class="mb-0">Add Users</h5>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-md-6">
+            <h6>Manual Entry</h6>
+            <form action="/admin/add-user" method="POST">
+              <div class="form-group">
+                <label for="add-email">Email</label>
+                <input type="email" class="form-control" id="add-email" name="email" required>
+              </div>
+              <div class="form-row">
+                <div class="form-group col-md-6">
+                  <label for="add-first-name">First Name</label>
+                  <input type="text" class="form-control" id="add-first-name" name="firstName">
+                </div>
+                <div class="form-group col-md-6">
+                  <label for="add-last-name">Last Name</label>
+                  <input type="text" class="form-control" id="add-last-name" name="lastName">
+                </div>
+              </div>
+              <div class="form-group">
+                <label for="add-display-name">Display Name</label>
+                <input type="text" class="form-control" id="add-display-name" name="displayName" placeholder="Optional">
+              </div>
+              <div class="form-group">
+                <label>Roles</label>
+                <div class="custom-control custom-checkbox">
+                  <input type="checkbox" class="custom-control-input" id="add-role-student" name="roles" value="Student" checked>
+                  <label class="custom-control-label" for="add-role-student">Student</label>
+                </div>
+                <div class="custom-control custom-checkbox">
+                  <input type="checkbox" class="custom-control-input" id="add-role-approver" name="roles" value="Approver">
+                  <label class="custom-control-label" for="add-role-approver">Approver</label>
+                </div>
+                <div class="custom-control custom-checkbox">
+                  <input type="checkbox" class="custom-control-input" id="add-role-officer" name="roles" value="Training Officer">
+                  <label class="custom-control-label" for="add-role-officer">Training Officer</label>
+                </div>
+              </div>
+              <div class="custom-control custom-checkbox mb-3">
+                <input type="checkbox" class="custom-control-input" id="add-is-admin" name="isAdmin">
+                <label class="custom-control-label" for="add-is-admin">Admin</label>
+              </div>
+              <button type="submit" class="btn btn-primary">Add User</button>
+            </form>
+          </div>
+          <div class="col-md-6">
+            <h6>Import (CSV)</h6>
+            <p class="text-muted mb-2">Headers: email, displayName, firstName, lastName, roles, isAdmin</p>
+            <form action="/admin/import-users" method="POST" enctype="multipart/form-data">
+              <div class="form-group">
+                <input type="file" class="form-control-file" name="csvFile" accept=".csv" required>
+              </div>
+              <button type="submit" class="btn btn-outline-primary">Import CSV</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
     
     <div class="card">
       <div class="card-header bg-primary text-white">
@@ -102,6 +168,13 @@
                         <button type="submit" class="btn btn-sm btn-<%= userItem.isAdmin ? 'warning' : 'success' %>">
                           <i class="fas <%= userItem.isAdmin ? 'fa-user-minus' : 'fa-user-shield' %>"></i> 
                           <%= userItem.isAdmin ? 'Remove Admin' : 'Make Admin' %>
+                        </button>
+                      </form>
+                    <% } %>
+                    <% if (userItem.email !== 'adavis@bvar19.org') { %>
+                      <form action="/admin/delete-user/<%= userItem._id %>" method="POST" class="mt-2" onsubmit="return confirm('Delete this user?');">
+                        <button type="submit" class="btn btn-sm btn-danger">
+                          <i class="fas fa-trash"></i> Delete User
                         </button>
                       </form>
                     <% } %>

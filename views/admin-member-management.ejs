@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Member Certificate Management - Training Database</title>
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <%- include('./partials/header', { user }) %>
+
+  <div class="container mt-4">
+    <div class="row mb-4">
+      <div class="col">
+        <h1>Member Certificate Management</h1>
+        <p>Search members, edit account details, and upload training certificates on their behalf.</p>
+      </div>
+    </div>
+
+    <% if (error) { %>
+      <div class="alert alert-danger"><%= error %></div>
+    <% } %>
+
+    <% if (success) { %>
+      <div class="alert alert-success"><%= success %></div>
+    <% } %>
+
+    <div class="card mb-4">
+      <div class="card-header bg-primary text-white">
+        <h5 class="mb-0">Find Member</h5>
+      </div>
+      <div class="card-body">
+        <form action="/training/admin/members" method="GET" class="form-inline">
+          <input
+            type="text"
+            class="form-control mr-2 flex-grow-1"
+            name="q"
+            value="<%= searchTerm || '' %>"
+            placeholder="Search by name or email"
+            style="min-width: 320px;"
+          >
+          <button type="submit" class="btn btn-primary mr-2">
+            <i class="fas fa-search mr-1"></i> Search
+          </button>
+          <a href="/training/admin/members" class="btn btn-outline-secondary">Clear</a>
+        </form>
+      </div>
+    </div>
+
+    <div class="card mb-4">
+      <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Members</h5>
+        <span><%= users.length %> result(s)</span>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-striped mb-0">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Roles</th>
+                <th>Admin</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% if (users.length === 0) { %>
+                <tr>
+                  <td colspan="5" class="text-center py-4">No members found.</td>
+                </tr>
+              <% } %>
+              <% users.forEach(function(userItem) { %>
+                <tr>
+                  <td><%= userItem.displayName %></td>
+                  <td><%= userItem.email %></td>
+                  <td><%= userItem.roles && userItem.roles.length ? userItem.roles.join(', ') : 'Student' %></td>
+                  <td>
+                    <span class="badge badge-<%= userItem.isAdmin ? 'success' : 'secondary' %>">
+                      <%= userItem.isAdmin ? 'Admin' : 'User' %>
+                    </span>
+                  </td>
+                  <td>
+                    <a
+                      href="/training/admin/members?<%= searchTerm ? ('q=' + encodeURIComponent(searchTerm) + '&') : '' %>selectedUser=<%= userItem._id %>"
+                      class="btn btn-sm btn-outline-primary"
+                    >
+                      Manage
+                    </a>
+                  </td>
+                </tr>
+              <% }) %>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <% if (selectedUser) { %>
+      <div class="row">
+        <div class="col-lg-6 mb-4">
+          <div class="card h-100">
+            <div class="card-header bg-info text-white">
+              <h5 class="mb-0">Edit Member</h5>
+            </div>
+            <div class="card-body">
+              <form action="/training/admin/members/<%= selectedUser._id %>/update" method="POST">
+                <div class="form-group">
+                  <label for="displayName">Display Name</label>
+                  <input type="text" class="form-control" id="displayName" name="displayName" value="<%= selectedUser.displayName || '' %>" required>
+                </div>
+                <div class="form-row">
+                  <div class="form-group col-md-6">
+                    <label for="firstName">First Name</label>
+                    <input type="text" class="form-control" id="firstName" name="firstName" value="<%= selectedUser.firstName || '' %>">
+                  </div>
+                  <div class="form-group col-md-6">
+                    <label for="lastName">Last Name</label>
+                    <input type="text" class="form-control" id="lastName" name="lastName" value="<%= selectedUser.lastName || '' %>">
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label for="email">Email</label>
+                  <input type="email" class="form-control" id="email" name="email" value="<%= selectedUser.email || '' %>" required>
+                </div>
+
+                <div class="form-group">
+                  <label>Roles</label>
+                  <div class="custom-control custom-checkbox">
+                    <input type="checkbox" class="custom-control-input" id="role-student" name="roles" value="Student" <%= selectedUser.roles && selectedUser.roles.includes('Student') ? 'checked' : '' %>>
+                    <label class="custom-control-label" for="role-student">Student</label>
+                  </div>
+                  <div class="custom-control custom-checkbox">
+                    <input type="checkbox" class="custom-control-input" id="role-approver" name="roles" value="Approver" <%= selectedUser.roles && selectedUser.roles.includes('Approver') ? 'checked' : '' %>>
+                    <label class="custom-control-label" for="role-approver">Approver</label>
+                  </div>
+                  <div class="custom-control custom-checkbox">
+                    <input type="checkbox" class="custom-control-input" id="role-officer" name="roles" value="Training Officer" <%= selectedUser.roles && selectedUser.roles.includes('Training Officer') ? 'checked' : '' %>>
+                    <label class="custom-control-label" for="role-officer">Training Officer</label>
+                  </div>
+                </div>
+
+                <div class="custom-control custom-checkbox mb-3">
+                  <input type="checkbox" class="custom-control-input" id="isAdmin" name="isAdmin" <%= selectedUser.isAdmin ? 'checked' : '' %>>
+                  <label class="custom-control-label" for="isAdmin">Admin</label>
+                </div>
+
+                <button type="submit" class="btn btn-info">
+                  <i class="fas fa-save mr-1"></i> Save Member
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-lg-6 mb-4">
+          <div class="card h-100">
+            <div class="card-header bg-success text-white">
+              <h5 class="mb-0">Upload Certificate For <%= selectedUser.displayName %></h5>
+            </div>
+            <div class="card-body">
+              <form action="/training/admin/members/<%= selectedUser._id %>/upload-certificate" method="POST" enctype="multipart/form-data">
+                <div class="form-group">
+                  <label for="trainingClass">Training Class</label>
+                  <select class="form-control" id="trainingClass" name="trainingClass" required>
+                    <option value="">-- Select Training Class --</option>
+                    <% trainingClasses.forEach(trainingClass => { %>
+                      <option value="<%= trainingClass._id %>"><%= trainingClass.name %></option>
+                    <% }) %>
+                  </select>
+                </div>
+
+                <div class="form-row">
+                  <div class="form-group col-md-6">
+                    <label for="startDate">Start Date</label>
+                    <input class="form-control" type="date" id="startDate" name="startDate" required>
+                  </div>
+                  <div class="form-group col-md-6">
+                    <label for="endDate">End Date</label>
+                    <input class="form-control" type="date" id="endDate" name="endDate" required>
+                  </div>
+                </div>
+
+                <div class="form-group">
+                  <label for="hoursLogged">Hours Completed</label>
+                  <input class="form-control" type="number" id="hoursLogged" name="hoursLogged" min="0" step="0.5" required>
+                </div>
+
+                <div class="form-group">
+                  <label for="adminComment">Admin Comment (optional)</label>
+                  <textarea class="form-control" id="adminComment" name="adminComment" rows="2" placeholder="Optional note saved with this submission"></textarea>
+                </div>
+
+                <div class="form-group">
+                  <label for="certificateFile">Certificate File (PDF or Image)</label>
+                  <div class="custom-file">
+                    <input type="file" class="custom-file-input" id="certificateFile" name="certificateFile" accept=".pdf,.jpg,.jpeg,.png" required>
+                    <label class="custom-file-label" for="certificateFile">Choose file...</label>
+                  </div>
+                </div>
+
+                <button type="submit" class="btn btn-success">
+                  <i class="fas fa-upload mr-1"></i> Upload for Member
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card mb-4">
+        <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+          <h5 class="mb-0">Submission History for <%= selectedUser.displayName %></h5>
+          <span><%= selectedUserSubmissions.length %> record(s)</span>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-striped mb-0">
+              <thead>
+                <tr>
+                  <th>Class</th>
+                  <th>Date Range</th>
+                  <th>Hours</th>
+                  <th>Status</th>
+                  <th>Uploaded By</th>
+                  <th>Approved By</th>
+                  <th>Submitted</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% if (!selectedUserSubmissions.length) { %>
+                  <tr>
+                    <td colspan="8" class="text-center py-4">No submissions yet for this member.</td>
+                  </tr>
+                <% } %>
+                <% selectedUserSubmissions.forEach(function(submission) { %>
+                  <tr>
+                    <td><%= submission.trainingClass ? submission.trainingClass.name : 'Unknown Class' %></td>
+                    <td><%= new Date(submission.startDate).toLocaleDateString() %> to <%= new Date(submission.endDate).toLocaleDateString() %></td>
+                    <td><%= submission.hoursLogged %></td>
+                    <td>
+                      <span class="badge badge-<%= submission.status === 'approved' ? 'success' : (submission.status === 'rejected' ? 'danger' : 'warning') %>">
+                        <%= submission.status %>
+                      </span>
+                    </td>
+                    <td>
+                      <%= submission.createdByAdmin ? ('Admin: ' + submission.createdByAdmin.displayName) : 'Member' %>
+                    </td>
+                    <td><%= submission.approvedBy ? submission.approvedBy.displayName : '-' %></td>
+                    <td><%= new Date(submission.createdAt).toLocaleDateString() %></td>
+                    <td>
+                      <a href="/training/submission/<%= submission._id %>" class="btn btn-sm btn-outline-primary">View</a>
+                      <% if (submission.certificateFile && submission.certificateFile.filename) { %>
+                        <a href="/uploads/<%= submission.certificateFile.filename %>" class="btn btn-sm btn-outline-secondary" target="_blank" rel="noopener" download>
+                          Download
+                        </a>
+                      <% } %>
+                    </td>
+                  </tr>
+                <% }) %>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    <% } %>
+  </div>
+
+  <%- include('./partials/footer') %>
+  <%- include('./partials/scripts') %>
+
+  <script>
+    $(document).ready(function() {
+      $('.custom-file-input').on('change', function() {
+        const fileName = $(this).val().split('\\').pop();
+        $(this).next('.custom-file-label').html(fileName || 'Choose file...');
+      });
+
+      $('form[action*="upload-certificate"]').on('submit', function(e) {
+        const startDate = new Date($('#startDate').val());
+        const endDate = new Date($('#endDate').val());
+        if (endDate < startDate) {
+          e.preventDefault();
+          alert('End date cannot be earlier than start date.');
+        }
+      });
+    });
+  </script>
+</body>
+</html>

@@ -9,6 +9,8 @@ const MongoStore = require('connect-mongo');
 const path = require('path');
 const helmet = require('helmet');
 const cookieParser = require('cookie-parser');
+const multer = require('multer');
+const { parse } = require('csv-parse/sync');
 
 // Initialize Express app
 const app = express();
@@ -38,6 +40,7 @@ connectWithRetry();
 
 // Load User model
 console.log('Initializing User model...');
+const User = require('./models/User');
 const User = mongoose.model('User', new mongoose.Schema({
   microsoftId: String,
   displayName: String,
@@ -107,6 +110,21 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
+// File upload (CSV) for admin user import
+const csvUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 2 * 1024 * 1024 } // 2MB
+});
+
+const ALLOWED_ROLES = ['Student', 'Approver', 'Training Officer'];
+
+const normalizeRoles = (roles) => {
+  const roleList = Array.isArray(roles) ? roles : (roles ? [roles] : ['Student']);
+  const cleaned = roleList.map(r => r.trim()).filter(Boolean);
+  const filtered = cleaned.filter(r => ALLOWED_ROLES.includes(r));
+  return filtered.length ? filtered : ['Student'];
+};
+
 // Configure Microsoft Strategy
 passport.use(new MicrosoftStrategy({
   clientID: process.env.MICROSOFT_CLIENT_ID,
@@ -116,6 +134,8 @@ passport.use(new MicrosoftStrategy({
   scope: ['user.read']
 }, async (accessToken, refreshToken, profile, done) => {
   try {
+    const user = await User.findOrCreateFromMicrosoft(profile);
+      
     // Check if user exists
     let user = await User.findOne({ microsoftId: profile.id });
 
@@ -294,6 +314,114 @@ app.get('/user-management', isAuthenticated, isAdmin, async (req, res) => {
   } catch (err) {
     console.error('Error fetching users:', err);
     res.status(500).render('error', { message: 'Error loading admin dashboard' });
+  }
+});
+
+// Add a single user (manual entry)
+app.post('/admin/add-user', isAuthenticated, isAdmin, async (req, res) => {
+  try {
+    const { email, displayName, firstName, lastName, roles, isAdmin: adminFlag } = req.body;
+
+    if (!email || email.trim() === '') {
+      return res.redirect('/admin?error=Email is required');
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const resolvedRoles = normalizeRoles(roles);
+
+    const resolvedDisplayName = (displayName && displayName.trim() !== '')
+      ? displayName.trim()
+      : [firstName, lastName].filter(Boolean).join(' ').trim();
+
+    const existingUser = await User.findOne({ email: normalizedEmail });
+
+    if (existingUser) {
+      existingUser.displayName = resolvedDisplayName || existingUser.displayName;
+      existingUser.firstName = firstName || existingUser.firstName;
+      existingUser.lastName = lastName || existingUser.lastName;
+      existingUser.roles = resolvedRoles;
+      existingUser.isAdmin = adminFlag === 'true' || adminFlag === 'on';
+      await existingUser.save();
+      return res.redirect('/admin?success=User updated successfully');
+    }
+
+    await User.create({
+      email: normalizedEmail,
+      displayName: resolvedDisplayName || normalizedEmail,
+      firstName: firstName || '',
+      lastName: lastName || '',
+      roles: resolvedRoles,
+      isAdmin: adminFlag === 'true' || adminFlag === 'on'
+    });
+
+    res.redirect('/admin?success=User added successfully');
+  } catch (err) {
+    console.error('Error adding user:', err);
+    res.redirect('/admin?error=' + encodeURIComponent(err.message || 'Error adding user'));
+  }
+});
+
+// Import users from CSV
+app.post('/admin/import-users', isAuthenticated, isAdmin, csvUpload.single('csvFile'), async (req, res) => {
+  try {
+    if (!req.file || !req.file.buffer) {
+      return res.redirect('/admin?error=CSV file is required');
+    }
+
+    const csvText = req.file.buffer.toString('utf8');
+    const records = parse(csvText, {
+      columns: true,
+      skip_empty_lines: true,
+      trim: true
+    });
+
+    let createdCount = 0;
+    let updatedCount = 0;
+
+    for (const record of records) {
+      const email = (record.email || record.Email || '').trim().toLowerCase();
+      if (!email) {
+        continue;
+      }
+
+      const displayName = (record.displayName || record.DisplayName || '').trim();
+      const firstName = (record.firstName || record.FirstName || '').trim();
+      const lastName = (record.lastName || record.LastName || '').trim();
+      const rolesRaw = record.roles || record.Roles || '';
+      const roles = normalizeRoles(
+        rolesRaw ? rolesRaw.split(/[,;|]/) : ['Student']
+      );
+      const isAdminValue = (record.isAdmin || record.IsAdmin || '').toString().toLowerCase();
+      const isAdmin = ['true', 'yes', '1'].includes(isAdminValue);
+
+      const resolvedDisplayName = displayName || [firstName, lastName].filter(Boolean).join(' ').trim() || email;
+
+      const existingUser = await User.findOne({ email });
+      if (existingUser) {
+        existingUser.displayName = resolvedDisplayName || existingUser.displayName;
+        existingUser.firstName = firstName || existingUser.firstName;
+        existingUser.lastName = lastName || existingUser.lastName;
+        existingUser.roles = roles;
+        existingUser.isAdmin = isAdmin;
+        await existingUser.save();
+        updatedCount += 1;
+      } else {
+        await User.create({
+          email,
+          displayName: resolvedDisplayName,
+          firstName,
+          lastName,
+          roles,
+          isAdmin
+        });
+        createdCount += 1;
+      }
+    }
+
+    res.redirect(`/admin?success=Import complete. Created ${createdCount}, Updated ${updatedCount}`);
+  } catch (err) {
+    console.error('Error importing users:', err);
+    res.redirect('/admin?error=' + encodeURIComponent(err.message || 'Error importing users'));
   }
 });
 
@@ -522,6 +650,29 @@ app.post('/user-management/toggle-admin/:id', isAuthenticated, isAdmin, async (r
   } catch (err) {
     console.error('Error toggling admin status:', err);
     res.redirect('/user-management?error=' + encodeURIComponent(err.message || 'Error updating admin status'));
+  }
+});
+
+// Delete user
+app.post('/admin/delete-user/:id', isAuthenticated, isAdmin, async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+
+    if (!user) {
+      return res.status(404).render('error', { message: 'User not found' });
+    }
+
+    // Don't allow deleting the primary admin account
+    if (user.email === 'adavis@bvar19.org') {
+      return res.redirect('/admin?error=Cannot delete the primary administrator');
+    }
+
+    await User.deleteOne({ _id: user._id });
+
+    res.redirect('/admin?success=User deleted successfully');
+  } catch (err) {
+    console.error('Error deleting user:', err);
+    res.redirect('/admin?error=' + encodeURIComponent(err.message || 'Error deleting user'));
   }
 });
 

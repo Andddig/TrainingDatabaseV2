@@ -39,6 +39,27 @@ const hasRole = (roles) => {
   };
 };
 
+const isAdmin = (req, res, next) => {
+  if (req.isAuthenticated() && req.user.isAdmin) {
+    return next();
+  }
+  res.status(403).render('error', {
+    message: 'Access denied. Admin privileges required.'
+  });
+};
+
+const ALLOWED_ROLES = ['Student', 'Approver', 'Training Officer'];
+
+const normalizeRoles = (roles) => {
+  const roleList = Array.isArray(roles) ? roles : (roles ? [roles] : ['Student']);
+  const filtered = roleList
+    .map(role => role.trim())
+    .filter(role => ALLOWED_ROLES.includes(role));
+  return filtered.length ? filtered : ['Student'];
+};
+
+const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 // Specific role middlewares
 const isApprover = (req, res, next) => {
   if (req.isAuthenticated() && (req.user.isAdmin || req.user.roles.includes('Approver'))) {
@@ -58,134 +79,27 @@ const isTrainingOfficer = (req, res, next) => {
   });
 };
 
-const certificateManagerRoles = ['Approver', 'Training Officer'];
+const canReviewSubmissions = (currentUser) => {
+  if (!currentUser) {
+    return false;
+  }
+  return currentUser.isAdmin ||
+    (currentUser.roles && (
+      currentUser.roles.includes('Approver') ||
+      currentUser.roles.includes('Training Officer')
+    ));
+};
 
-const escapeRegex = (string) => string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-function parseDateAsLocal(dateString) {
-  if (!dateString) return null;
-  const parts = dateString.split('-');
-  if (parts.length !== 3) return null;
-  const year = parseInt(parts[0], 10);
-  const month = parseInt(parts[1], 10) - 1;
-  const day = parseInt(parts[2], 10);
-  return new Date(year, month, day);
+// Ensure uploads directory exists
+const uploadsDir = path.join(__dirname, '..', 'public', 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
 }
-
-const deleteFileIfExists = async (filename) => {
-  if (!filename) {
-    return;
-  }
-
-  const filePath = path.join(uploadsDir, filename);
-  try {
-    await fsPromises.access(filePath);
-    await fsPromises.unlink(filePath);
-  } catch (err) {
-    if (err.code !== 'ENOENT') {
-      console.error('Error removing uploaded file:', err);
-    }
-  }
-};
-
-const normalizeWhitespace = (value = '') => value.replace(/\s+/g, ' ').trim();
-
-const parseCertificateFields = (rawText) => {
-  const normalizedText = (rawText || '').replace(/\r\n/g, '\n');
-  const trimmedText = normalizedText.trim();
-
-  if (!trimmedText) {
-    return { rawText: '' };
-  }
-
-  const lines = normalizedText
-    .split('\n')
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0);
-
-  const result = {};
-
-  const nameIndex = lines.findIndex((line) => /THIS CERTIFICATE AWARDED TO/i.test(line));
-  if (nameIndex !== -1) {
-    const candidate = lines[nameIndex + 1] || lines[nameIndex + 2] || '';
-    if (candidate) {
-      result.recipientName = normalizeWhitespace(candidate);
-    }
-  }
-
-  const courseIndex = lines.findIndex((line) => /COMPLETED ALL COURSE WORK IN/i.test(line));
-  if (courseIndex !== -1) {
-    const classLines = [];
-    for (let i = courseIndex + 1; i < lines.length; i += 1) {
-      const line = lines[i];
-      if (!line) {
-        break;
-      }
-      if (/^\(?\d+(?:\.\d+)?\s*(hours?|hrs?)/i.test(line)) {
-        break;
-      }
-      if (/^LOG NUMBER/i.test(line)) {
-        break;
-      }
-      classLines.push(line);
-      if (line.endsWith(')')) {
-        break;
-      }
-    }
-    if (classLines.length) {
-      result.trainingClassName = normalizeWhitespace(classLines.join(' '));
-    }
-  }
-
-  const hoursMatch = normalizedText.match(/(\d+(?:\.\d+)?)\s*(hours?|hrs?)/i);
-  if (hoursMatch) {
-    const hoursValue = parseFloat(hoursMatch[1]);
-    if (!Number.isNaN(hoursValue)) {
-      result.hoursLogged = hoursValue;
-    }
-  }
-
-  const dateMatch = normalizedText.match(/(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},\s*\d{4}/i);
-  if (dateMatch) {
-    const parsedDate = new Date(dateMatch[0]);
-    if (!Number.isNaN(parsedDate.getTime())) {
-      result.courseDate = parsedDate.toISOString();
-      result.courseDateText = normalizeWhitespace(dateMatch[0]);
-    }
-  }
-
-  const identifierMatch = normalizedText.match(/\b[A-Z]{3,}-\d{2,}[A-Z0-9-]*\b/);
-  if (identifierMatch) {
-    result.courseIdentifier = identifierMatch[0];
-  }
-
-  const logMatch = normalizedText.match(/LOG NUMBER\s*([A-Z0-9-]+)/i);
-  if (logMatch) {
-    result.logNumber = logMatch[1].trim();
-  }
-
-  result.rawText = trimmedText;
-  return result;
-};
-
-const extractCertificateText = async (file) => {
-  if (!file || !file.buffer) {
-    return '';
-  }
-
-  if (file.mimetype === 'application/pdf') {
-    const parsed = await pdfParse(file.buffer);
-    return parsed && parsed.text ? parsed.text : '';
-  }
-
-  const { data } = await Tesseract.recognize(file.buffer, 'eng');
-  return data && data.text ? data.text : '';
-};
 
 // Set up multer for file uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, 'public/uploads/');
+    cb(null, uploadsDir);
   },
   filename: (req, file, cb) => {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
@@ -210,11 +124,27 @@ const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
 });
 
-const extractionUpload = multer({
-  storage: multer.memoryStorage(),
-  fileFilter: fileFilter,
-  limits: { fileSize: 5 * 1024 * 1024 }
-});
+const uploadCertificate = (req, res, next) => {
+  upload.single('certificateFile')(req, res, (err) => {
+    if (!err) {
+      return next();
+    }
+
+    const message = err.message || 'File upload failed';
+    return res.redirect('/training/submit?error=' + encodeURIComponent(message));
+  });
+};
+
+const uploadCertificateForAdmin = (req, res, next) => {
+  upload.single('certificateFile')(req, res, (err) => {
+    if (!err) {
+      return next();
+    }
+
+    const message = err.message || 'File upload failed';
+    return res.redirect(`/training/admin/members?selectedUser=${req.params.id}&error=${encodeURIComponent(message)}`);
+  });
+};
 
 // STUDENT ROUTES
 
@@ -238,7 +168,7 @@ router.get('/submit', isAuthenticated, async (req, res) => {
 });
 
 // Handle submission
-router.post('/submit', isAuthenticated, upload.single('certificateFile'), async (req, res) => {
+router.post('/submit', isAuthenticated, uploadCertificate, async (req, res) => {
   try {
     const { trainingClass, startDate, endDate, hoursLogged, courseNumber } = req.body;
     
@@ -262,7 +192,8 @@ router.post('/submit', isAuthenticated, upload.single('certificateFile'), async 
       startDate,
       endDate,
       hoursLogged,
-      courseNumber: (courseNumber || '').trim(),
+      createdByAdmin: null,
+      uploadedForUser: null,
       certificateFile: {
         filename: req.file.filename,
         originalName: req.file.originalname,
@@ -302,6 +233,172 @@ router.get('/my-submissions', isAuthenticated, async (req, res) => {
   } catch (err) {
     console.error('Error fetching submissions:', err);
     res.status(500).render('error', { message: 'Error loading your submissions' });
+  }
+});
+
+router.get('/admin/members', isAuthenticated, isAdmin, async (req, res) => {
+  try {
+    const searchTerm = (req.query.q || '').trim();
+    const selectedUserId = req.query.selectedUser;
+
+    const userQuery = {};
+    if (searchTerm) {
+      const safePattern = new RegExp(escapeRegex(searchTerm), 'i');
+      userQuery.$or = [
+        { displayName: safePattern },
+        { firstName: safePattern },
+        { lastName: safePattern },
+        { email: safePattern }
+      ];
+    }
+
+    const users = await User.find(userQuery).sort('displayName').limit(200);
+    const trainingClasses = await TrainingClass.find({ isActive: true }).sort('name');
+
+    let selectedUser = null;
+    let selectedUserSubmissions = [];
+    if (selectedUserId && mongoose.Types.ObjectId.isValid(selectedUserId)) {
+      selectedUser = await User.findById(selectedUserId);
+      if (selectedUser) {
+        selectedUserSubmissions = await TrainingSubmission.find({ student: selectedUser._id })
+          .populate('trainingClass')
+          .populate('approvedBy', 'displayName')
+          .populate('createdByAdmin', 'displayName')
+          .sort('-createdAt')
+          .limit(100);
+      }
+    }
+
+    res.render('admin-member-management', {
+      user: req.user,
+      users,
+      selectedUser,
+      selectedUserSubmissions,
+      trainingClasses,
+      searchTerm,
+      error: req.query.error,
+      success: req.query.success
+    });
+  } catch (err) {
+    console.error('Error loading admin member management:', err);
+    res.status(500).render('error', { message: 'Error loading member management' });
+  }
+});
+
+router.post('/admin/members/:id/update', isAuthenticated, isAdmin, async (req, res) => {
+  try {
+    const selectedUserId = req.params.id;
+    const { displayName, firstName, lastName, email, roles, isAdmin: isAdminFlag } = req.body;
+    const userToUpdate = await User.findById(selectedUserId);
+
+    if (!userToUpdate) {
+      return res.redirect('/training/admin/members?error=User not found');
+    }
+
+    const normalizedEmail = (email || '').trim().toLowerCase();
+    if (!normalizedEmail) {
+      return res.redirect(`/training/admin/members?selectedUser=${selectedUserId}&error=Email is required`);
+    }
+
+    const existingEmailUser = await User.findOne({
+      email: normalizedEmail,
+      _id: { $ne: userToUpdate._id }
+    });
+    if (existingEmailUser) {
+      return res.redirect(`/training/admin/members?selectedUser=${selectedUserId}&error=Email is already in use by another user`);
+    }
+
+    const nextIsAdmin = isAdminFlag === 'on' || isAdminFlag === 'true';
+    if (userToUpdate.email === 'adavis@bvar19.org' && !nextIsAdmin) {
+      return res.redirect(`/training/admin/members?selectedUser=${selectedUserId}&error=Cannot remove admin status from the primary administrator`);
+    }
+
+    userToUpdate.displayName = (displayName || '').trim() || [firstName, lastName].filter(Boolean).join(' ').trim() || normalizedEmail;
+    userToUpdate.firstName = (firstName || '').trim();
+    userToUpdate.lastName = (lastName || '').trim();
+    userToUpdate.email = normalizedEmail;
+    userToUpdate.roles = normalizeRoles(roles);
+    userToUpdate.isAdmin = nextIsAdmin;
+
+    await userToUpdate.save();
+    res.redirect(`/training/admin/members?selectedUser=${selectedUserId}&success=User details updated successfully`);
+  } catch (err) {
+    console.error('Error updating user details:', err);
+    res.redirect(`/training/admin/members?selectedUser=${req.params.id}&error=${encodeURIComponent(err.message || 'Error updating user details')}`);
+  }
+});
+
+router.post('/admin/members/:id/upload-certificate', isAuthenticated, isAdmin, uploadCertificateForAdmin, async (req, res) => {
+  try {
+    const selectedUserId = req.params.id;
+    const userToSubmitFor = await User.findById(selectedUserId);
+    if (!userToSubmitFor) {
+      return res.redirect('/training/admin/members?error=User not found');
+    }
+
+    const { trainingClass, startDate, endDate, hoursLogged, adminComment } = req.body;
+
+    if (!req.file) {
+      return res.redirect(`/training/admin/members?selectedUser=${selectedUserId}&error=Certificate file is required`);
+    }
+
+    const classRecord = await TrainingClass.findById(trainingClass);
+    if (!classRecord) {
+      fs.unlinkSync(path.join('public/uploads/', req.file.filename));
+      return res.redirect(`/training/admin/members?selectedUser=${selectedUserId}&error=Training class not found`);
+    }
+
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) {
+      fs.unlinkSync(path.join('public/uploads/', req.file.filename));
+      return res.redirect(`/training/admin/members?selectedUser=${selectedUserId}&error=Please provide a valid date range`);
+    }
+
+    const parsedHours = Number(hoursLogged);
+    if (!Number.isFinite(parsedHours) || parsedHours < 0) {
+      fs.unlinkSync(path.join('public/uploads/', req.file.filename));
+      return res.redirect(`/training/admin/members?selectedUser=${selectedUserId}&error=Hours must be 0 or greater`);
+    }
+
+    const submission = new TrainingSubmission({
+      student: userToSubmitFor._id,
+      trainingClass,
+      startDate,
+      endDate,
+      hoursLogged: parsedHours,
+      createdByAdmin: req.user._id,
+      uploadedForUser: userToSubmitFor._id,
+      certificateFile: {
+        filename: req.file.filename,
+        originalName: req.file.originalname,
+        path: req.file.path,
+        mimeType: req.file.mimetype
+      },
+      status: 'approved',
+      approvedBy: req.user._id,
+      approvedAt: new Date(),
+      comments: [{
+        author: req.user._id,
+        text: (adminComment || '').trim() || `Uploaded by admin ${req.user.displayName} on behalf of ${userToSubmitFor.displayName}`
+      }]
+    });
+
+    await submission.save();
+
+    try {
+      await qualificationsModule.updateUserQualificationsForApprovedSubmission(submission);
+    } catch (qualificationErr) {
+      console.error('Error updating qualifications for admin-uploaded submission:', qualificationErr);
+    }
+
+    res.redirect(`/training/admin/members?selectedUser=${selectedUserId}&success=Certificate uploaded and recorded for ${encodeURIComponent(userToSubmitFor.displayName)}`);
+  } catch (err) {
+    console.error('Error uploading certificate for member:', err);
+    if (req.file) {
+      fs.unlinkSync(path.join('public/uploads/', req.file.filename));
+    }
+    res.redirect(`/training/admin/members?selectedUser=${req.params.id}&error=${encodeURIComponent(err.message || 'Error uploading certificate')}`);
   }
 });
 
@@ -660,6 +757,8 @@ router.get('/submission/:id', isAuthenticated, async (req, res) => {
       .populate('student')
       .populate('trainingClass')
       .populate('approvedBy')
+      .populate('createdByAdmin')
+      .populate('uploadedForUser')
       .populate({
         path: 'comments.author',
         model: 'User'
@@ -670,8 +769,8 @@ router.get('/submission/:id', isAuthenticated, async (req, res) => {
     }
     
     // Check if user is allowed to view this submission
-    const hasManagementRole = req.user.roles && (req.user.roles.includes('Approver') || req.user.roles.includes('Training Officer'));
-    if (!req.user.isAdmin && !hasManagementRole && submission.student._id.toString() !== req.user._id.toString()) {
+    const isOwner = submission.student._id.toString() === req.user._id.toString();
+    if (!isOwner && !canReviewSubmissions(req.user)) {
       return res.status(403).render('error', { message: 'Access denied to this submission' });
     }
     
@@ -777,7 +876,8 @@ router.post('/submission/:id/comment', isAuthenticated, async (req, res) => {
     }
     
     // Check if user is allowed to comment
-    if (!req.user.isAdmin && submission.student.toString() !== req.user._id.toString()) {
+    const isOwner = submission.student.toString() === req.user._id.toString();
+    if (!isOwner && !canReviewSubmissions(req.user)) {
       return res.status(403).render('error', { message: 'Access denied to this submission' });
     }
     
