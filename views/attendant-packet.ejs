@@ -4,373 +4,570 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Attendant Packet - Training Database</title>
-  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
-  <link rel="stylesheet" href="/css/styles.css">
   <style>
-    .call-box {
-      border: 1px solid #ddd;
-      border-radius: 8px;
-      padding: 15px;
-      margin-bottom: 15px;
-      transition: all 0.3s ease;
-      position: relative;
-      width: 100%;
+    .packet-cover {
+      border-radius: 14px;
+      background: linear-gradient(140deg, rgba(16, 31, 79, 0.98), rgba(36, 80, 150, 0.96));
+      color: #fff;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
     }
-    .call-box.completed {
-      background-color: #e8f5e9;
-      border-color: #4caf50;
+    .packet-metric {
+      font-size: 1.6rem;
+      font-weight: 700;
     }
-    .call-box.completed::after {
-      content: '✓';
-      position: absolute;
-      right: 10px;
-      top: 10px;
-      color: #4caf50;
-      font-size: 24px;
-      animation: checkmark 0.5s ease;
+    .stage-badge {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
     }
-    @keyframes checkmark {
-      0% { transform: scale(0); }
-      50% { transform: scale(1.2); }
-      100% { transform: scale(1); }
+    .skill-row td {
+      vertical-align: middle;
     }
-    .progress {
-      height: 25px;
-      margin-bottom: 20px;
+    .signature-note {
+      font-size: 0.85rem;
+      color: #6c757d;
     }
-    .form-row {
-      margin-bottom: 10px;
-    }
-    .completed-calls {
-      margin-top: 20px;
-    }
-    .invalid-feedback {
-      display: block;
-    }
-    .call-number {
-      font-size: 1.2rem;
-      font-weight: bold;
-      margin-bottom: 10px;
+    .call-targeted {
+      box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.25);
+      border-radius: 0.3rem;
+      transition: box-shadow 0.3s ease;
     }
   </style>
 </head>
 <body>
   <%- include('./partials/header', { user }) %>
-  
-  <div class="container mt-4">
-    <div class="row mb-4">
-      <div class="col">
-        <h1>Attendant Packet</h1>
-        <div class="progress">
-          <div class="progress-bar" role="progressbar" style="width: <%= (completedCalls || 0) * 8.33 %>%" id="progressBar">
-            <%= (completedCalls || 0) %>/12 Calls Completed
-          </div>
-        </div>
-      </div>
-    </div>
-    
-    <div class="row">
-      <div class="col-12">
-        <div id="activeCalls">
-          <% for(let i = 1; i <= 12; i++) { %>
-            <div class="call-box <%= calls && calls[i] && calls[i].completed ? 'completed' : '' %>" id="call<%= i %>">
-              <div class="call-number">Call <%= i %></div>
-              <div class="row">
-                <div class="col-md-3">
-                  <div class="form-group">
-                    <label for="incident<%= i %>">Incident Number</label>
-                    <input type="text" class="form-control" id="incident<%= i %>" 
-                           name="incident<%= i %>"
-                           value="<%= calls && calls[i] ? calls[i].incident : '' %>"
-                           pattern="F-\d{2}-\d{6}" 
-                           placeholder="F-YY-######"
-                           required>
-                    <div class="invalid-feedback">Please enter a valid incident number (F-YY-######)</div>
-                  </div>
-                </div>
-                <div class="col-md-3">
-                  <div class="form-group">
-                    <label>Type</label>
-                    <select class="form-control" id="type<%= i %>" name="type<%= i %>">
-                      <option value="sick_person" <%= calls && calls[i] && calls[i].type === 'sick_person' ? 'selected' : '' %>>Sick Person</option>
-                      <option value="chest_pain" <%= calls && calls[i] && calls[i].type === 'chest_pain' ? 'selected' : '' %>>Chest Pain</option>
-                      <option value="cardiac_arrest" <%= calls && calls[i] && calls[i].type === 'cardiac_arrest' ? 'selected' : '' %>>Cardiac Arrest</option>
-                      <option value="overdose" <%= calls && calls[i] && calls[i].type === 'overdose' ? 'selected' : '' %>>Overdose</option>
-                      <option value="assist_patient" <%= calls && calls[i] && calls[i].type === 'assist_patient' ? 'selected' : '' %>>Assist Patient</option>
-                      <option value="mental_patient" <%= calls && calls[i] && calls[i].type === 'mental_patient' ? 'selected' : '' %>>Mental Patient</option>
-                    </select>
-                  </div>
-                </div>
-                <div class="col-md-3">
-                  <div class="form-group">
-                    <label>Disposition</label>
-                    <div class="form-check">
-                      <input class="form-check-input" type="radio" name="disposition<%= i %>" id="transport<%= i %>" 
-                             value="transport" <%= !calls || !calls[i] || calls[i].disposition === 'transport' ? 'checked' : '' %>>
-                      <label class="form-check-label" for="transport<%= i %>">Transport</label>
-                    </div>
-                    <div class="form-check">
-                      <input class="form-check-input" type="radio" name="disposition<%= i %>" id="refusal<%= i %>" 
-                             value="refusal" <%= calls && calls[i] && calls[i].disposition === 'refusal' ? 'checked' : '' %>>
-                      <label class="form-check-label" for="refusal<%= i %>">Refusal</label>
-                    </div>
-                  </div>
-                </div>
-                <div class="col-md-3">
-                  <button class="btn btn-success complete-btn" data-call="<%= i %>" 
-                          style="margin-top: 25px;" 
-                          <%= calls && calls[i] && calls[i].completed ? 'disabled' : '' %>>
-                    <%= calls && calls[i] && calls[i].completed ? 'Completed' : 'Complete' %>
-                  </button>
-                </div>
-              </div>
-            </div>
-          <% } %>
-        </div>
 
-        <div class="completed-calls">
-          <div class="card">
-            <div class="card-header" id="completedCallsHeader">
-              <h5 class="mb-0">
-                <button class="btn btn-link" data-toggle="collapse" data-target="#completedCalls" aria-expanded="false" aria-controls="completedCalls">
-                  Completed Calls
-                </button>
-                <% if (user.isAdmin) { %>
-                  <button class="btn btn-danger float-right" id="resetQualification" style="display: none;">
-                    Reset Qualification
-                  </button>
-                <% } %>
-              </h5>
-            </div>
-            <div id="completedCalls" class="collapse" aria-labelledby="completedCallsHeader">
-              <div class="card-body">
-                <div id="completedCallsList">
-                  <% if (calls) { %>
-                    <% Array.from(calls.entries()).forEach(([key, call]) => { %>
-                      <% if (call.completed) { %>
-                        <div class="call-box completed">
-                          <div class="row">
-                            <div class="col-md-3">
-                              <strong>Incident:</strong> <%= call.incident %>
-                            </div>
-                            <div class="col-md-3">
-                              <strong>Type:</strong> <%= call.type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) %>
-                            </div>
-                            <div class="col-md-3">
-                              <strong>Disposition:</strong> <%= call.disposition.charAt(0).toUpperCase() + call.disposition.slice(1) %>
-                            </div>
-                            <div class="col-md-3">
-                              <button class="btn btn-secondary" disabled>Completed</button>
-                            </div>
-                          </div>
-                        </div>
-                      <% } %>
-                    <% }); %>
-                  <% } %>
-                </div>
+  <div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h1 class="mb-0">Attendant Packet</h1>
+      <a class="btn btn-outline-secondary" id="backToDemoPortalButton" href="/demo-portal">Back to Demo Portal</a>
+    </div>
+
+    <div class="packet-cover">
+      <div class="row">
+        <div class="col-md-8">
+          <h3 class="mb-2">EMT 2nd Attendant to EMT 1st Attendant Packet</h3>
+          <p class="mb-1">Track cover details, call evaluations, signatures, and final chief approval in one workflow.</p>
+          <p class="mb-0">Rating key: <strong>S</strong> Satisfactory, <strong>NI</strong> Needs Improvement, <strong>F</strong> Fail, <strong>NA</strong> Not Applicable.</p>
+        </div>
+        <div class="col-md-4 text-md-right mt-3 mt-md-0">
+          <div class="packet-metric"><%= completedCalls || 0 %>/12</div>
+          <div>Completed Call Sheets</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="alertHost" class="mb-3 alert-host" aria-live="polite"></div>
+    <% if (canCreatePacket) { %>
+      <div class="card mb-4">
+        <div class="card-header">Cover Page / Packet Setup</div>
+        <div class="card-body">
+          <form id="coverForm">
+            <input type="hidden" id="packetId" name="packetId" value="<%= packet ? packet._id : '' %>">
+            <input type="hidden" id="createNewPacket" name="createNew" value="0">
+            <div class="form-row">
+              <div class="form-group col-md-4">
+                <label>EMT 2nd Attendant (Candidate)</label>
+                <select class="form-control" name="candidateId" required>
+                  <option value="">Select candidate...</option>
+                  <% users.forEach(member => { %>
+                    <option value="<%= member._id %>" <%= packet && packet.candidate && packet.candidate._id.toString() === member._id.toString() ? 'selected' : '' %>>
+                      <%= member.displayName %> (<%= member.email %>)
+                    </option>
+                  <% }); %>
+                </select>
               </div>
+              <div class="form-group col-md-4">
+                <label>Sponsoring Rescue Officer</label>
+                <select class="form-control" name="sponsoringRescueOfficerId" required>
+                  <% users.forEach(member => { %>
+                    <option value="<%= member._id %>" <%= packet && packet.sponsoringRescueOfficer && packet.sponsoringRescueOfficer._id.toString() === member._id.toString() ? 'selected' : (member._id.toString() === user._id.toString() ? 'selected' : '') %>>
+                      <%= member.displayName %>
+                    </option>
+                  <% }); %>
+                </select>
+              </div>
+              <div class="form-group col-md-4">
+                <label>Rescue Chief</label>
+                <select class="form-control" name="rescueChiefId">
+                  <option value="">Select chief...</option>
+                  <% users.forEach(member => { %>
+                    <option value="<%= member._id %>" <%= packet && packet.rescueChief && packet.rescueChief._id.toString() === member._id.toString() ? 'selected' : '' %>>
+                      <%= member.displayName %>
+                    </option>
+                  <% }); %>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group col-md-3">
+                <label>EMT Completion Date</label>
+                <input class="form-control" type="date" name="emtCompletionDate" value="<%= packet && packet.emtCompletionDate ? packet.emtCompletionDate.toISOString().slice(0,10) : '' %>">
+              </div>
+              <div class="form-group col-md-3">
+                <label>EMT 2nd Attendant Start Date</label>
+                <input class="form-control" type="date" name="secondAttendantStartDate" value="<%= packet && packet.secondAttendantStartDate ? packet.secondAttendantStartDate.toISOString().slice(0,10) : '' %>">
+              </div>
+              <div class="form-group col-md-6">
+                <label>Path to EMT 1st Attendant</label>
+                <select class="form-control" name="eligibilityPath" id="eligibilityPath">
+                  <option value="trips" <%= !packet || packet.eligibilityPath === 'trips' ? 'selected' : '' %>>12 Emergency Trips</option>
+                  <option value="one_year" <%= packet && packet.eligibilityPath === 'one_year' ? 'selected' : '' %>>One year as 2nd Attendant</option>
+                  <option value="qualified_elsewhere" <%= packet && packet.eligibilityPath === 'qualified_elsewhere' ? 'selected' : '' %>>Already EMT 1st elsewhere</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-group <%= packet && packet.eligibilityPath === 'qualified_elsewhere' ? '' : 'd-none' %>" id="elsewhereAgencyGroup">
+              <label>Qualified Elsewhere Agency</label>
+              <input class="form-control" type="text" name="qualifiedElsewhereAgency" value="<%= packet ? packet.qualifiedElsewhereAgency || '' : '' %>" placeholder="Company or police agency">
+            </div>
+
+            <button type="submit" class="btn btn-primary mr-2">Save Cover Page</button>
+            <button type="button" class="btn btn-outline-primary" id="createPacketBtn">Create New Packet</button>
+          </form>
+        </div>
+      </div>
+    <% } %>
+
+    <div class="card mb-3">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span>Packet Selection</span>
+        <span class="badge badge-secondary"><%= packets.length %> packets</span>
+      </div>
+      <div class="card-body">
+        <% if (!packets.length) { %>
+          <p class="mb-0">No packet exists yet. <% if (canCreatePacket) { %>Use Cover Page / Packet Setup above to create one.<% } %></p>
+        <% } else { %>
+          <form method="GET" action="/demo/attendant-packet" class="form-inline" id="packetSelectorForm">
+            <label class="mr-2">Active Packet</label>
+            <select class="form-control mr-2" name="packet">
+              <% packets.forEach(pkt => { %>
+                <option value="<%= pkt._id %>" <%= packet && packet._id.toString() === pkt._id.toString() ? 'selected' : '' %>>
+                  <%= pkt.candidate && pkt.candidate.displayName ? pkt.candidate.displayName : 'Unknown Candidate' %> - <%= pkt.status.replace(/_/g, ' ') %>
+                </option>
+              <% }) %>
+            </select>
+          </form>
+        <% } %>
+      </div>
+    </div>
+
+    <% if (packet) { %>
+      <div class="card mb-4">
+        <div class="card-header">Cover Summary</div>
+        <div class="card-body">
+          <div class="row">
+            <div class="col-md-6">
+              <p><strong>Candidate:</strong> <%= packet.candidate && packet.candidate.displayName ? packet.candidate.displayName : 'N/A' %></p>
+              <p><strong>Sponsoring Rescue Officer:</strong> <%= packet.sponsoringRescueOfficer && packet.sponsoringRescueOfficer.displayName ? packet.sponsoringRescueOfficer.displayName : 'N/A' %></p>
+              <p><strong>Rescue Chief:</strong> <%= packet.rescueChief && packet.rescueChief.displayName ? packet.rescueChief.displayName : 'Not assigned' %></p>
+            </div>
+            <div class="col-md-6">
+              <p><strong>EMT Completion Date:</strong> <%= packet.emtCompletionDate ? packet.emtCompletionDate.toDateString() : 'N/A' %></p>
+              <p><strong>2nd Attendant Start Date:</strong> <%= packet.secondAttendantStartDate ? packet.secondAttendantStartDate.toDateString() : 'N/A' %></p>
+              <p><strong>Path:</strong> <%= packet.eligibilityPath.replace(/_/g, ' ') %> <%= packet.eligibilityPath === 'qualified_elsewhere' && packet.qualifiedElsewhereAgency ? `(${packet.qualifiedElsewhereAgency})` : '' %></p>
             </div>
           </div>
         </div>
       </div>
-    </div>
+
+      <% if (packet.eligibilityPath === 'trips') { %>
+        <div id="callSheets" class="accordion mb-4">
+          <% packet.callSheets.sort((a, b) => a.callNumber - b.callNumber).forEach(call => { %>
+            <div class="card mb-3">
+              <div class="card-header" id="heading<%= call.callNumber %>">
+                <button class="btn btn-link" data-toggle="collapse" data-target="#collapse<%= call.callNumber %>" aria-expanded="false" aria-controls="collapse<%= call.callNumber %>">
+                  Call <%= call.callNumber %>
+                  <span class="badge badge-info stage-badge"><%= call.status.replace(/_/g, ' ') %></span>
+                </button>
+              </div>
+              <div id="collapse<%= call.callNumber %>" class="collapse" aria-labelledby="heading<%= call.callNumber %>" data-parent="#callSheets">
+                <div class="card-body">
+                  <% if (canEvaluateCallSheet) { %>
+                    <form class="call-form mb-4" data-call-number="<%= call.callNumber %>">
+                      <div class="form-row">
+                        <div class="form-group col-md-4">
+                          <label>Candidate Name</label>
+                          <input class="form-control" name="candidateName" value="<%= call.candidateName || (packet.candidate ? packet.candidate.displayName : '') %>">
+                        </div>
+                        <div class="form-group col-md-4">
+                          <label>Incident Date</label>
+                          <input class="form-control" type="date" name="incidentDate" value="<%= call.incidentDate ? new Date(call.incidentDate).toISOString().slice(0,10) : '' %>">
+                        </div>
+                        <div class="form-group col-md-4">
+                          <label>Patient Priority</label>
+                          <input class="form-control" name="patientPriority" value="<%= call.patientPriority || '' %>">
+                        </div>
+                      </div>
+
+                      <div class="form-row">
+                        <div class="form-group col-md-6">
+                          <label>Incident Type</label>
+                          <input class="form-control" name="incidentType" value="<%= call.incidentType || '' %>">
+                        </div>
+                        <div class="form-group col-md-6">
+                          <label>FC Incident #</label>
+                          <input class="form-control" name="fcIncidentNumber" value="<%= call.fcIncidentNumber || '' %>">
+                        </div>
+                      </div>
+
+                      <div class="form-group">
+                        <label>Directions</label>
+                        <textarea class="form-control" name="directions" rows="2"><%= call.directions || '' %></textarea>
+                      </div>
+
+                      <div class="table-responsive">
+                        <table class="table table-sm table-bordered">
+                          <thead>
+                            <tr>
+                              <th>Skill</th>
+                              <th style="width: 120px;">Rating</th>
+                              <th>Category Comments</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <% (call.skillRatings || []).forEach((skill, idx) => { %>
+                              <tr class="skill-row">
+                                <td>
+                                  <%= skill.skill %>
+                                  <input type="hidden" name="skillName" value="<%= skill.skill %>">
+                                </td>
+                                <td>
+                                  <select class="form-control form-control-sm" name="skillRating">
+                                    <% ratings.forEach(rate => { %>
+                                      <option value="<%= rate %>" <%= skill.rating === rate ? 'selected' : '' %>><%= rate %></option>
+                                    <% }) %>
+                                  </select>
+                                </td>
+                                <td>
+                                  <input class="form-control form-control-sm" name="skillComment" value="<%= skill.comments || '' %>">
+                                </td>
+                              </tr>
+                            <% }) %>
+                          </tbody>
+                        </table>
+                      </div>
+
+                      <div class="form-group">
+                        <label>Evaluator Comments</label>
+                        <textarea class="form-control" name="evaluatorComments" rows="2"><%= call.evaluatorComments || '' %></textarea>
+                      </div>
+
+                      <div class="form-row">
+                        <div class="form-group col-md-4">
+                          <label>Candidate capable of functioning independently?</label>
+                          <select class="form-control" name="independentFieldReady">
+                            <option value="not_evaluated" <%= !call.independentFieldReady || call.independentFieldReady.value === 'not_evaluated' ? 'selected' : '' %>>Not evaluated</option>
+                            <option value="yes" <%= call.independentFieldReady && call.independentFieldReady.value === 'yes' ? 'selected' : '' %>>Yes</option>
+                            <option value="no" <%= call.independentFieldReady && call.independentFieldReady.value === 'no' ? 'selected' : '' %>>No (needs more work)</option>
+                          </select>
+                        </div>
+                        <div class="form-group col-md-8">
+                          <label>Guidance if additional evaluation is needed</label>
+                          <input class="form-control" name="independentFieldComments" value="<%= call.independentFieldReady ? call.independentFieldReady.comments || '' : '' %>">
+                        </div>
+                      </div>
+
+                      <button type="submit" class="btn btn-primary">Save Call Sheet (Evaluator)</button>
+                    </form>
+                  <% } %>
+
+                  <div class="border rounded p-3 mb-3">
+                    <h6>Signature Flow</h6>
+                    <p class="signature-note mb-2">Evaluator fills call sheet, then candidate signs, then evaluator signs, then rescue officer signs.</p>
+                    <div class="row">
+                      <div class="col-md-4">
+                        <strong>Candidate</strong><br>
+                        <span><%= call.candidateSignature && call.candidateSignature.signedAt ? `${call.candidateSignature.name} (${new Date(call.candidateSignature.signedAt).toLocaleDateString()})` : 'Pending signature' %></span>
+                        <% if (packet.candidate && packet.candidate._id && packet.candidate._id.toString() === user._id.toString()) { %>
+                          <button class="btn btn-outline-primary btn-sm mt-2 sign-btn" data-call-number="<%= call.callNumber %>" data-sign-type="candidate">Candidate Sign</button>
+                        <% } %>
+                      </div>
+                      <div class="col-md-4">
+                        <strong>Evaluator</strong><br>
+                        <span><%= call.evaluatorSignature && call.evaluatorSignature.signedAt ? `${call.evaluatorSignature.name} (${new Date(call.evaluatorSignature.signedAt).toLocaleDateString()})` : 'Pending signature' %></span>
+                        <% if (canEvaluateCallSheet) { %>
+                          <button class="btn btn-outline-primary btn-sm mt-2 sign-btn" data-call-number="<%= call.callNumber %>" data-sign-type="evaluator">Evaluator Sign</button>
+                        <% } %>
+                      </div>
+                      <div class="col-md-4">
+                        <strong>Rescue Officer</strong><br>
+                        <span><%= call.rescueOfficerSignature && call.rescueOfficerSignature.signedAt ? `${call.rescueOfficerSignature.name} (${new Date(call.rescueOfficerSignature.signedAt).toLocaleDateString()})` : 'Pending signature' %></span>
+                        <% if (canRescueOfficerSign) { %>
+                          <button class="btn btn-outline-success btn-sm mt-2 sign-btn" data-call-number="<%= call.callNumber %>" data-sign-type="rescue-officer">Rescue Officer Sign</button>
+                        <% } %>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          <% }) %>
+        </div>
+      <% } %>
+
+      <% if (canPerformFinalReview) { %>
+        <div class="card mb-4" id="final-review">
+          <div class="card-header">Final Rescue Chief Review</div>
+          <div class="card-body">
+            <form id="finalReviewForm">
+              <div class="form-row">
+                <div class="form-group col-md-4">
+                  <label>EMT 1st Attendant Completion Date</label>
+                  <input class="form-control" type="date" name="firstAttendantCompletionDate" value="<%= packet.finalReview && packet.finalReview.firstAttendantCompletionDate ? new Date(packet.finalReview.firstAttendantCompletionDate).toISOString().slice(0,10) : '' %>">
+                </div>
+                <div class="form-group col-md-4">
+                  <label>Decision</label>
+                  <select class="form-control" name="decision">
+                    <option value="approved" <%= packet.finalReview && packet.finalReview.decision === 'approved' ? 'selected' : '' %>>EMT 1st Attendant Approved</option>
+                    <option value="pending_more_evaluation" <%= !packet.finalReview || packet.finalReview.decision !== 'approved' ? 'selected' : '' %>>Pending More Evaluation Time</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Rescue Chief Comments</label>
+                <textarea class="form-control" rows="3" name="comments"><%= packet.finalReview ? packet.finalReview.comments || '' : '' %></textarea>
+              </div>
+              <button type="submit" class="btn btn-success">Save Final Review</button>
+            </form>
+          </div>
+        </div>
+      <% } %>
+    <% } %>
+
+    <div id="packetRuntime"
+      data-packet-id="<%= packet ? packet._id : '' %>"
+      data-can-manage="<%= isPacketManager ? '1' : '0' %>"
+      data-can-evaluate="<%= canEvaluateCallSheet ? '1' : '0' %>"></div>
   </div>
-  
+
   <%- include('./partials/footer') %>
   <%- include('./partials/scripts') %>
   <script>
-    const initialCompletedCalls = <%= completedCalls || 0 %>;
-    const completedCallsList = document.getElementById('completedCallsList');
-    const currentYear = new Date().getFullYear().toString().slice(-2);
-    const resetQualificationBtn = document.getElementById('resetQualification');
-    
-    // Show reset button if all calls are completed
-    if (initialCompletedCalls === 12) {
-      if (resetQualificationBtn) {
-        resetQualificationBtn.style.display = 'block';
+    (function () {
+      const runtimeData = document.getElementById('packetRuntime');
+      const packetId = runtimeData ? runtimeData.dataset.packetId : '';
+      const canManagePacket = runtimeData ? runtimeData.dataset.canManage === '1' : false;
+      const canEvaluatePacket = runtimeData ? runtimeData.dataset.canEvaluate === '1' : false;
+      const backToDemoPortalButton = document.getElementById('backToDemoPortalButton');
+      if (backToDemoPortalButton) {
+        backToDemoPortalButton.addEventListener('click', function (event) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          window.location.href = this.href;
+        });
       }
-    }
-    
-    // Handle reset qualification button
-    if (resetQualificationBtn) {
-      resetQualificationBtn.addEventListener('click', async function() {
-        if (confirm('Are you sure you want to reset this qualification? This will remove the qualification and all progress.')) {
+
+      function showAlert(message, type = 'success') {
+        const host = document.getElementById('alertHost');
+        const wrapper = document.createElement('div');
+        wrapper.className = `alert alert-${type} mt-2`;
+        wrapper.textContent = message;
+        host.prepend(wrapper);
+        setTimeout(() => wrapper.remove(), 5000);
+      }
+
+      const pulseCandidateField = () => {
+        if (!coverForm) {
+          return;
+        }
+        const field = coverForm.querySelector('select[name="candidateId"]');
+        if (!field) {
+          return;
+        }
+        field.classList.remove('pulse-border');
+        void field.offsetWidth;
+        field.classList.add('pulse-border');
+        setTimeout(() => field.classList.remove('pulse-border'), 3200);
+      };
+
+      async function postJson(url, payload) {
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload || {})
+        });
+        const data = await response.json();
+        if (!response.ok || !data.success) {
+          throw new Error(data.error || 'Request failed');
+        }
+        return data;
+      }
+
+      const eligibilityPath = document.getElementById('eligibilityPath');
+      const elsewhereAgencyGroup = document.getElementById('elsewhereAgencyGroup');
+      if (eligibilityPath && elsewhereAgencyGroup) {
+        eligibilityPath.addEventListener('change', () => {
+          elsewhereAgencyGroup.classList.toggle('d-none', eligibilityPath.value !== 'qualified_elsewhere');
+        });
+      }
+
+      const coverForm = document.getElementById('coverForm');
+      const createPacketBtn = document.getElementById('createPacketBtn');
+      if (createPacketBtn && coverForm) {
+        createPacketBtn.addEventListener('click', async () => {
+          document.getElementById('createNewPacket').value = '1';
+          document.getElementById('packetId').value = '';
+          coverForm.requestSubmit();
+        });
+      }
+
+      if (coverForm) {
+        coverForm.addEventListener('submit', async (event) => {
+          event.preventDefault();
           try {
-            const response = await fetch('/demo/remove-attendant-qualification', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({ userId: '<%= user._id %>' })
-            });
-            
-            const data = await response.json();
-            if (data.success) {
-              location.reload();
-            } else {
-              alert('Error resetting qualification: ' + data.error);
+            const formData = new FormData(coverForm);
+            const payload = Object.fromEntries(formData.entries());
+            if (!payload.packetId) {
+              payload.createNew = '1';
+            }
+            const result = await postJson('/demo/attendant-packet/cover', payload);
+            showAlert('Cover page saved.');
+            const newPacketId = result.packetId || payload.packetId;
+            if (newPacketId) {
+              window.location.href = `/demo/attendant-packet?packet=${newPacketId}`;
             }
           } catch (error) {
-            console.error('Error resetting qualification:', error);
-            alert('Error resetting qualification. Please try again.');
+            showAlert(error.message, 'danger');
+            pulseCandidateField();
+          } finally {
+            const createFlag = document.getElementById('createNewPacket');
+            if (createFlag) {
+              createFlag.value = '0';
+            }
           }
-        }
-      });
-    }
-    
-    // Format incident number input
-    document.querySelectorAll('input[id^="incident"]').forEach(input => {
-      input.addEventListener('input', function(e) {
-        // Remove any non-digit characters
-        let value = this.value.replace(/\D/g, '');
-        
-        // If empty, set to F-YY-
-        if (!value) {
-          this.value = `F-${currentYear}-`;
-          return;
-        }
-        
-        // If starts with F-YY-, keep it
-        if (this.value.startsWith(`F-${currentYear}-`)) {
-          return;
-        }
-        
-        // Format as F-YY-######
-        if (value.length <= 6) {
-          this.value = `F-${currentYear}-${value}`;
-        } else {
-          this.value = `F-${currentYear}-${value.slice(0, 6)}`;
-        }
-      });
-      
-      // Set initial value if empty
-      if (!input.value) {
-        input.value = `F-${currentYear}-`;
+        });
       }
-    });
-    
-    document.querySelectorAll('.complete-btn').forEach(button => {
-      button.addEventListener('click', function() {
-        const callNumber = this.dataset.call;
-        const callBox = document.getElementById(`call${callNumber}`);
-        const incidentInput = document.getElementById(`incident${callNumber}`);
-        
-        // Validate incident number
-        if (!incidentInput.checkValidity()) {
-          incidentInput.classList.add('is-invalid');
+
+      document.querySelectorAll('.call-form').forEach((formEl) => {
+        formEl.addEventListener('submit', async (event) => {
+          event.preventDefault();
+          if (!packetId || !canEvaluatePacket) {
+            showAlert('No active packet selected.', 'danger');
+            return;
+          }
+
+          const callNumber = formEl.dataset.callNumber;
+          const fieldData = new FormData(formEl);
+          const skillNames = fieldData.getAll('skillName');
+          const skillRatings = fieldData.getAll('skillRating');
+          const skillComments = fieldData.getAll('skillComment');
+
+          const payload = {
+            candidateName: fieldData.get('candidateName'),
+            incidentDate: fieldData.get('incidentDate'),
+            patientPriority: fieldData.get('patientPriority'),
+            incidentType: fieldData.get('incidentType'),
+            fcIncidentNumber: fieldData.get('fcIncidentNumber'),
+            directions: fieldData.get('directions'),
+            evaluatorComments: fieldData.get('evaluatorComments'),
+            independentFieldReady: fieldData.get('independentFieldReady'),
+            independentFieldComments: fieldData.get('independentFieldComments'),
+            skillRatings: skillNames.map((name, index) => ({
+              skill: name,
+              rating: skillRatings[index] || 'NA',
+              comments: skillComments[index] || ''
+            }))
+          };
+
+          try {
+            await postJson(`/demo/attendant-packet/${packetId}/calls/${callNumber}`, payload);
+            showAlert(`Call ${callNumber} saved and set to awaiting candidate signature.`);
+            setTimeout(() => window.location.reload(), 600);
+          } catch (error) {
+            showAlert(error.message, 'danger');
+          }
+        });
+      });
+
+      document.querySelectorAll('.sign-btn').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          if (!packetId) {
+            showAlert('No active packet selected.', 'danger');
+            return;
+          }
+
+          const callNumber = btn.dataset.callNumber;
+          const signType = btn.dataset.signType;
+          const routeMap = {
+            candidate: 'candidate-sign',
+            evaluator: 'evaluator-sign',
+            'rescue-officer': 'rescue-officer-sign'
+          };
+
+          try {
+            await postJson(`/demo/attendant-packet/${packetId}/calls/${callNumber}/${routeMap[signType]}`, {});
+            showAlert(`Call ${callNumber} ${signType.replace('-', ' ')} signature saved.`);
+            setTimeout(() => window.location.reload(), 600);
+          } catch (error) {
+            showAlert(error.message, 'danger');
+          }
+        });
+      });
+
+      const finalReviewForm = document.getElementById('finalReviewForm');
+      if (finalReviewForm) {
+        finalReviewForm.addEventListener('submit', async (event) => {
+          event.preventDefault();
+          if (!packetId) {
+            showAlert('No active packet selected.', 'danger');
+            return;
+          }
+
+          const payload = Object.fromEntries(new FormData(finalReviewForm).entries());
+          try {
+            await postJson(`/demo/attendant-packet/${packetId}/final-review`, payload);
+            showAlert('Final review saved.');
+            setTimeout(() => window.location.reload(), 600);
+          } catch (error) {
+            showAlert(error.message, 'danger');
+          }
+        });
+      }
+
+      const openTargetFromHash = () => {
+        const hash = window.location.hash;
+        if (!hash) {
           return;
         }
-        
-        if (!callBox.classList.contains('completed')) {
-          // Get form data
-          const formData = new FormData();
-          formData.append('callNumber', parseInt(callNumber)); // Ensure callNumber is a number
-          formData.append('incident', incidentInput.value);
-          formData.append('type', document.getElementById(`type${callNumber}`).value);
-          formData.append('disposition', document.querySelector(`input[name="disposition${callNumber}"]:checked`).value);
-          
-          // Save progress
-          fetch('/demo/save-attendant-progress', {
-            method: 'POST',
-            body: formData
-          })
-          .then(response => {
-            if (!response.ok) {
-              return response.json().then(data => {
-                throw new Error(data.error || 'Failed to save progress');
-              });
-            }
-            return response.json();
-          })
-          .then(data => {
-            if (data.success) {
-              // Disable all inputs in the call box
-              callBox.querySelectorAll('input, select').forEach(input => {
-                input.disabled = true;
-              });
-              
-              // Create completed call entry
-              const completedCall = document.createElement('div');
-              completedCall.className = 'call-box completed';
-              completedCall.innerHTML = `
-                <div class="row">
-                  <div class="col-md-3">
-                    <strong>Incident:</strong> ${incidentInput.value}
-                  </div>
-                  <div class="col-md-3">
-                    <strong>Type:</strong> ${document.getElementById(`type${callNumber}`).value.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                  </div>
-                  <div class="col-md-3">
-                    <strong>Disposition:</strong> ${document.querySelector(`input[name="disposition${callNumber}"]:checked`).value.charAt(0).toUpperCase() + document.querySelector(`input[name="disposition${callNumber}"]:checked`).value.slice(1)}
-                  </div>
-                  <div class="col-md-3">
-                    <button class="btn btn-secondary" disabled>Completed</button>
-                  </div>
-                </div>
-              `;
-              
-              // Add to completed list
-              completedCallsList.appendChild(completedCall);
-              
-              // Update progress
-              callBox.classList.add('completed');
-              const currentCompletedCalls = document.querySelectorAll('.call-box.completed').length;
-              updateProgress(currentCompletedCalls);
-              triggerConfetti();
-              
-              // If all calls are completed, award qualification
-              if (currentCompletedCalls === 12) {
-                awardQualification();
-              }
-              
-              // Remove from active calls
-              callBox.remove();
-              
-              // Show completed calls section
-              document.getElementById('completedCalls').classList.add('show');
-            }
-          })
-          .catch(error => {
-            console.error('Error saving progress:', error);
-            alert('Error saving progress: ' + error.message);
-          });
+
+        const target = document.querySelector(hash);
+        if (!target) {
+          return;
         }
-      });
-    });
-    
-    function updateProgress(completedCount) {
-      const progressBar = document.getElementById('progressBar');
-      const percentage = (completedCount / 12) * 100;
-      progressBar.style.width = `${percentage}%`;
-      progressBar.textContent = `${completedCount}/12 Calls Completed`;
-    }
-    
-    function triggerConfetti() {
-      confetti({
-        particleCount: 100,
-        spread: 70,
-        origin: { y: 0.6 }
-      });
-    }
-    
-    function awardQualification() {
-      fetch('/demo/award-attendant-qualification', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
+
+        const openAndFocus = () => {
+          const card = target.closest('.card');
+          if (card) {
+            card.classList.add('call-targeted');
+            setTimeout(() => card.classList.remove('call-targeted'), 3000);
+          }
+
+          target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        };
+
+        if (target.classList.contains('collapse') && typeof window.jQuery === 'function') {
+          window.jQuery(target).collapse('show');
+          setTimeout(openAndFocus, 220);
+        } else {
+          openAndFocus();
         }
-      })
-      .then(response => response.json())
-      .then(data => {
-        if (data.success) {
-          alert('Congratulations! You have completed the Attendant Packet and earned the qualification!');
-        }
-      })
-      .catch(error => {
-        console.error('Error awarding qualification:', error);
-      });
-    }
+      };
+
+      openTargetFromHash();
+      const packetSelect = document.querySelector('select[name="packet"]');
+      if (packetSelect) {
+        packetSelect.addEventListener('change', () => {
+          const nextUrl = new URL(window.location.href);
+          nextUrl.hash = '';
+          nextUrl.searchParams.set('packet', packetSelect.value);
+          window.location.assign(nextUrl.toString());
+        });
+      }
+    })();
   </script>
 </body>
-</html> 
+</html>

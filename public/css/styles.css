@@ -798,6 +798,26 @@ footer.enhanced {
   color: var(--error-color);
 }
 
+@keyframes pulse-border {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(209, 52, 56, 0.75);
+    border-color: var(--error-color);
+  }
+  50% {
+    box-shadow: 0 0 0 12px rgba(209, 52, 56, 0.3);
+    border-color: var(--error-color);
+  }
+}
+
+.pulse-border {
+  animation: pulse-border 1s ease-in-out 0s 3;
+  border-color: var(--error-color) !important;
+}
+
+.alert-host {
+  min-height: 0;
+}
+
 .action-buttons {
   display: flex;
   gap: 0.5rem;

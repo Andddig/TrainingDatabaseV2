@@ -45,6 +45,7 @@ const User = require('./models/User');
 // Import UserQualification model
 const UserQualification = require('./models/UserQualification');
 const AttendantProgress = require('./models/AttendantProgress');
+const AttendantPacket = require('./models/AttendantPacket');
 const Qualification = require('./models/Qualification');
 
 // Load route modules
@@ -105,7 +106,7 @@ const csvUpload = multer({
   limits: { fileSize: 2 * 1024 * 1024 } // 2MB
 });
 
-const ALLOWED_ROLES = ['Student', 'Approver', 'Training Officer'];
+const ALLOWED_ROLES = ['Student', 'Approver', 'Training Officer', 'Rescue Officer', 'Evaluator', 'Rescue Chief'];
 
 const normalizeRoles = (roles) => {
   const roleList = Array.isArray(roles) ? roles : (roles ? [roles] : ['Student']);
@@ -420,13 +421,318 @@ app.get('/demo-portal', isAuthenticated, (req, res) => {
   res.render('demo-portal', { user: req.user });
 });
 
+app.get('/demo/attendant-packet-queue', isAuthenticated, async (req, res) => {
+  try {
+    if (!canManageAttendantPackets(req.user)) {
+      return res.status(403).render('error', { message: 'Access denied. Packet queue roles required.' });
+    }
+
+    const packets = await AttendantPacket.find({
+      status: { $in: ['in_progress', 'pending_chief_review', 'pending_more_evaluation'] }
+    })
+      .populate('candidate', 'displayName email')
+      .populate('sponsoringRescueOfficer', 'displayName email')
+      .populate('rescueChief', 'displayName email')
+      .sort('-updatedAt')
+      .limit(300);
+
+    const evaluatorQueue = [];
+    const rescueOfficerQueue = [];
+    const rescueChiefQueue = [];
+
+    packets.forEach(packet => {
+      const completedCalls = packet.callSheets.filter(call => call.status === 'completed').length;
+
+      packet.callSheets.forEach(call => {
+        if (call.status === 'awaiting_evaluator_signature') {
+          evaluatorQueue.push({
+            packetId: packet._id,
+            callNumber: call.callNumber,
+            candidateName: packet.candidate ? packet.candidate.displayName : 'Unknown',
+            incidentDate: call.incidentDate,
+            fcIncidentNumber: call.fcIncidentNumber || '',
+            updatedAt: packet.updatedAt
+          });
+        }
+
+        if (call.status === 'awaiting_rescue_officer_signature') {
+          rescueOfficerQueue.push({
+            packetId: packet._id,
+            callNumber: call.callNumber,
+            candidateName: packet.candidate ? packet.candidate.displayName : 'Unknown',
+            incidentDate: call.incidentDate,
+            fcIncidentNumber: call.fcIncidentNumber || '',
+            sponsoringRescueOfficer: packet.sponsoringRescueOfficer ? packet.sponsoringRescueOfficer.displayName : '',
+            updatedAt: packet.updatedAt
+          });
+        }
+      });
+
+      if (packet.status === 'pending_chief_review') {
+        rescueChiefQueue.push({
+          packetId: packet._id,
+          candidateName: packet.candidate ? packet.candidate.displayName : 'Unknown',
+          eligibilityPath: packet.eligibilityPath,
+          completedCalls,
+          rescueChief: packet.rescueChief ? packet.rescueChief.displayName : '',
+          updatedAt: packet.updatedAt
+        });
+      }
+    });
+
+    evaluatorQueue.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+    rescueOfficerQueue.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+    rescueChiefQueue.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+
+    res.render('attendant-packet-queue', {
+      user: req.user,
+      canEvaluateCallSheet: canEvaluateCallSheet(req.user),
+      canRescueOfficerSign: canRescueOfficerSign(req.user),
+      canPerformFinalReview: canPerformFinalReview(req.user),
+      evaluatorQueue,
+      rescueOfficerQueue,
+      rescueChiefQueue
+    });
+  } catch (err) {
+    console.error('Error loading attendant packet queue:', err);
+    res.status(500).render('error', { message: 'Error loading attendant packet queue' });
+  }
+});
+
+const hasAnyRole = (user, roles) => {
+  if (!user || !Array.isArray(user.roles)) {
+    return false;
+  }
+
+  return roles.some(role => user.roles.includes(role));
+};
+
+const canManageAttendantPackets = (user) => {
+  if (!user) {
+    return false;
+  }
+
+  return user.isAdmin || hasAnyRole(user, ['Approver', 'Training Officer', 'Rescue Officer', 'Evaluator', 'Rescue Chief']);
+};
+
+const canCreatePacket = (user) => {
+  return !!user && (user.isAdmin || hasAnyRole(user, ['Training Officer', 'Rescue Officer', 'Approver']));
+};
+
+const canEvaluateCallSheet = (user) => {
+  return !!user && (user.isAdmin || hasAnyRole(user, ['Evaluator', 'Rescue Officer', 'Training Officer', 'Approver']));
+};
+
+const canRescueOfficerSign = (user) => {
+  return !!user && (user.isAdmin || hasAnyRole(user, ['Rescue Officer', 'Training Officer', 'Approver']));
+};
+
+const canPerformFinalReview = (user) => {
+  return !!user && (user.isAdmin || hasAnyRole(user, ['Rescue Chief', 'Training Officer', 'Approver']));
+};
+
+const hasAttendantPacketAccess = (packet, user) => {
+  if (!packet || !user) {
+    return false;
+  }
+
+  if (canManageAttendantPackets(user)) {
+    return true;
+  }
+
+  const candidateId = packet.candidate && packet.candidate._id
+    ? packet.candidate._id.toString()
+    : (packet.candidate ? packet.candidate.toString() : null);
+  return candidateId === user._id.toString();
+};
+
+const ATTENDANT_SKILLS = [
+  'Response - Map reading',
+  'Response - Radio use',
+  'Response - Communication with Driver',
+  'Physical Assessment - Initial',
+  'Physical Assessment - Focused/Rapid',
+  'Physical Assessment - Vitals',
+  'Physical Assessment - Ongoing',
+  'Subjective Interview - SAMPLE',
+  'Subjective Interview - OPQRST',
+  'Airway Maintenance - Positioning',
+  'Airway Maintenance - Suctioning',
+  'Airway Maintenance - Airway Adjuncts',
+  'Airway Maintenance - Oxygen Admin (Correct LPM)',
+  'Airway Maintenance - Oxygen Admin (Correct Device)',
+  'Airway Maintenance - Mechanical Ventilation',
+  'Medical Emergencies - CPR & AED (Role)',
+  'Medical Emergencies - Medication Administration',
+  'Trauma Emergencies - Spinal Immobilization (Device/Role)',
+  'Trauma Emergencies - Fracture Management (Device/Role)',
+  'Trauma Emergencies - Bleeding Control (Method Used)',
+  'Transport & Disposition - Movement of Patient to Stretcher',
+  'Transport & Disposition - Cot Operations',
+  'Transport & Disposition - Consultation',
+  'Transport & Disposition - Turn Over Report (To Whom)',
+  'Communication Skills - With Patient',
+  'Communication Skills - With ALS Personnel',
+  'Communication Skills - With Family/Bystanders',
+  'Scene Management - Time Management',
+  'Scene Management - Functions as Lead Provider',
+  'Scene Management - Protocol Followed'
+];
+
+const buildDefaultSkillRatings = () => {
+  return ATTENDANT_SKILLS.map(skill => ({ skill, rating: 'NA', comments: '' }));
+};
+
+const buildDefaultCallSheets = () => {
+  return Array.from({ length: 12 }, (_, idx) => ({
+    callNumber: idx + 1,
+    status: 'draft',
+    skillRatings: buildDefaultSkillRatings(),
+    independentFieldReady: {
+      value: 'not_evaluated',
+      comments: ''
+    }
+  }));
+};
+
+const BLOCK_DUPLICATE_ATTENDANT_PACKET_STATUSES = [
+  'in_progress',
+  'pending_chief_review',
+  'pending_more_evaluation',
+  'approved'
+];
+
+const syncAttendantProgressFromPacket = async (packet) => {
+  if (!packet || packet.eligibilityPath !== 'trips') {
+    return;
+  }
+
+  const callsMap = new Map();
+  packet.callSheets
+    .filter(call => call.status === 'completed')
+    .forEach(call => {
+      callsMap.set(call.callNumber.toString(), {
+        incident: call.fcIncidentNumber || '',
+        type: call.incidentType || '',
+        disposition: call.patientPriority || '',
+        completed: true
+      });
+    });
+
+  await AttendantProgress.findOneAndUpdate(
+    { user: packet.candidate },
+    {
+      user: packet.candidate,
+      calls: callsMap,
+      completedCalls: callsMap.size
+    },
+    {
+      upsert: true,
+      new: true,
+      setDefaultsOnInsert: true
+    }
+  );
+};
+
+const awardAttendantQualificationForUser = async (userId, actingUserId) => {
+  let qualification = await Qualification.findOne({ name: 'Attendant' });
+  if (!qualification) {
+    qualification = new Qualification({
+      name: 'Attendant',
+      description: 'Completed Attendant packet requirements',
+      requiredClasses: [],
+      createdBy: actingUserId
+    });
+    await qualification.save();
+  }
+
+  let userQualification = await UserQualification.findOne({
+    user: userId,
+    qualification: qualification._id
+  });
+
+  if (!userQualification) {
+    userQualification = new UserQualification({
+      user: userId,
+      qualification: qualification._id,
+      isComplete: true,
+      earnedDate: new Date(),
+      lastUpdated: new Date()
+    });
+  } else {
+    userQualification.isComplete = true;
+    userQualification.earnedDate = new Date();
+    userQualification.lastUpdated = new Date();
+  }
+
+  await userQualification.save();
+};
+
+const findCallSheet = (packet, callNumber) => {
+  return packet.callSheets.find(call => call.callNumber === Number(callNumber));
+};
+
+const parseDateOrNull = (value) => {
+  if (!value) {
+    return null;
+  }
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
 const renderAttendantPacketView = async (req, res, template) => {
   try {
+    const isPacketManager = canManageAttendantPackets(req.user);
+    const packetFilter = isPacketManager
+      ? {}
+      : { candidate: req.user._id };
+
+    let packets = await AttendantPacket.find(packetFilter)
+      .populate('candidate', 'displayName email')
+      .populate('sponsoringRescueOfficer', 'displayName email')
+      .populate('rescueChief', 'displayName email')
+      .sort('-updatedAt')
+      .limit(100);
+
+    const packetId = req.query.packet;
+    let selectedPacket = packetId
+      ? packets.find(packet => packet._id.toString() === packetId)
+      : packets[0];
+
+    if (packetId && !selectedPacket && mongoose.Types.ObjectId.isValid(packetId)) {
+      const extraPacket = await AttendantPacket.findById(packetId)
+        .populate('candidate', 'displayName email')
+        .populate('sponsoringRescueOfficer', 'displayName email')
+        .populate('rescueChief', 'displayName email');
+
+      if (extraPacket && hasAttendantPacketAccess(extraPacket, req.user)) {
+        selectedPacket = extraPacket;
+        packets = [extraPacket, ...packets];
+      }
+    }
+
     const attendantProgress = await AttendantProgress.findOne({ user: req.user._id });
+    const completedCalls = selectedPacket
+      ? selectedPacket.callSheets.filter(call => call.status === 'completed').length
+      : (attendantProgress ? attendantProgress.completedCalls : 0);
+
+    const users = isPacketManager
+      ? await User.find({}).sort('displayName').select('displayName email roles')
+      : [];
+
     res.render(template, {
       user: req.user,
+      packet: selectedPacket || null,
+      packets,
+      users,
+      isPacketManager,
+      canCreatePacket: canCreatePacket(req.user),
+      canEvaluateCallSheet: canEvaluateCallSheet(req.user),
+      canRescueOfficerSign: canRescueOfficerSign(req.user),
+      canPerformFinalReview: canPerformFinalReview(req.user),
+      ratings: ['S', 'NI', 'F', 'NA'],
       calls: attendantProgress ? attendantProgress.calls : null,
-      completedCalls: attendantProgress ? attendantProgress.completedCalls : 0
+      completedCalls
     });
   } catch (err) {
     console.error('Error loading attendant packet:', err);
@@ -440,6 +746,311 @@ app.get('/demo/attendant-packet', isAuthenticated, async (req, res) => {
 
 app.get('/demo/attendant-packet-old', isAuthenticated, async (req, res) => {
   await renderAttendantPacketView(req, res, 'attendant-packet-old');
+});
+
+app.post('/demo/attendant-packet/cover', isAuthenticated, async (req, res) => {
+  try {
+    if (!canCreatePacket(req.user)) {
+      return res.status(403).json({ success: false, error: 'Only officers can create or edit packets.' });
+    }
+
+    const {
+      packetId,
+      candidateId,
+      sponsoringRescueOfficerId,
+      rescueChiefId,
+      emtCompletionDate,
+      secondAttendantStartDate,
+      eligibilityPath,
+      qualifiedElsewhereAgency
+    } = req.body;
+
+    if (!candidateId) {
+      return res.status(400).json({ success: false, error: 'Candidate is required.' });
+    }
+
+    const validPaths = ['trips', 'one_year', 'qualified_elsewhere'];
+    const chosenPath = validPaths.includes(eligibilityPath) ? eligibilityPath : 'trips';
+
+    const createNewRequested = req.body.createNew === true || req.body.createNew === 'true' || req.body.createNew === '1';
+    let packet;
+    if (packetId) {
+      packet = await AttendantPacket.findById(packetId);
+      if (!packet) {
+        return res.status(404).json({ success: false, error: 'Packet not found.' });
+      }
+
+      const existingCandidateId = packet.candidate ? packet.candidate.toString() : '';
+      if (createNewRequested || (candidateId && existingCandidateId && existingCandidateId !== candidateId.toString())) {
+        packet = null;
+      }
+    }
+
+    if (!packet) {
+      const existingPacket = await AttendantPacket.findOne({
+        candidate: candidateId,
+        status: { $in: BLOCK_DUPLICATE_ATTENDANT_PACKET_STATUSES }
+      }).select('_id status');
+
+      if (existingPacket) {
+        return res.status(400).json({
+          success: false,
+          error: 'This candidate already has an attendant packet in progress or completed.'
+        });
+      }
+
+      packet = new AttendantPacket({
+        candidate: candidateId,
+        createdBy: req.user._id,
+        sponsoringRescueOfficer: sponsoringRescueOfficerId || req.user._id,
+        callSheets: buildDefaultCallSheets()
+      });
+    }
+
+    packet.candidate = candidateId;
+    packet.sponsoringRescueOfficer = sponsoringRescueOfficerId || req.user._id;
+    packet.rescueChief = rescueChiefId || null;
+    packet.emtCompletionDate = parseDateOrNull(emtCompletionDate);
+    packet.secondAttendantStartDate = parseDateOrNull(secondAttendantStartDate);
+    packet.eligibilityPath = chosenPath;
+    packet.qualifiedElsewhereAgency = chosenPath === 'qualified_elsewhere'
+      ? (qualifiedElsewhereAgency || '').trim()
+      : '';
+
+    if (!Array.isArray(packet.callSheets) || packet.callSheets.length === 0) {
+      packet.callSheets = buildDefaultCallSheets();
+    }
+
+    if (chosenPath !== 'trips') {
+      packet.status = 'pending_chief_review';
+    }
+
+    await packet.save();
+    return res.json({ success: true, packetId: packet._id });
+  } catch (err) {
+    console.error('Error saving attendant packet cover:', err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/demo/attendant-packet/:id', isAuthenticated, async (req, res) => {
+  try {
+    const packet = await AttendantPacket.findById(req.params.id)
+      .populate('candidate', 'displayName email')
+      .populate('sponsoringRescueOfficer', 'displayName email')
+      .populate('rescueChief', 'displayName email');
+
+    if (!packet) {
+      return res.status(404).json({ success: false, error: 'Packet not found.' });
+    }
+
+    if (!hasAttendantPacketAccess(packet, req.user)) {
+      return res.status(403).json({ success: false, error: 'Access denied.' });
+    }
+
+    return res.json({ success: true, packet });
+  } catch (err) {
+    console.error('Error loading packet details:', err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/demo/attendant-packet/:id/calls/:callNumber', isAuthenticated, async (req, res) => {
+  try {
+    if (!canEvaluateCallSheet(req.user)) {
+      return res.status(403).json({ success: false, error: 'Only evaluators/officers can update call sheets.' });
+    }
+
+    const packet = await AttendantPacket.findById(req.params.id);
+    if (!packet) {
+      return res.status(404).json({ success: false, error: 'Packet not found.' });
+    }
+
+    const callSheet = findCallSheet(packet, req.params.callNumber);
+    if (!callSheet) {
+      return res.status(404).json({ success: false, error: 'Call sheet not found.' });
+    }
+
+    const payload = req.body || {};
+    callSheet.candidateName = (payload.candidateName || callSheet.candidateName || '').trim();
+    callSheet.incidentDate = parseDateOrNull(payload.incidentDate);
+    callSheet.patientPriority = (payload.patientPriority || '').trim();
+    callSheet.incidentType = (payload.incidentType || '').trim();
+    callSheet.fcIncidentNumber = (payload.fcIncidentNumber || '').trim();
+    callSheet.directions = (payload.directions || '').trim();
+    callSheet.evaluatorComments = (payload.evaluatorComments || '').trim();
+    callSheet.independentFieldReady = {
+      value: ['yes', 'no', 'not_evaluated'].includes(payload.independentFieldReady) ? payload.independentFieldReady : 'not_evaluated',
+      comments: (payload.independentFieldComments || '').trim()
+    };
+
+    if (Array.isArray(payload.skillRatings) && payload.skillRatings.length > 0) {
+      callSheet.skillRatings = payload.skillRatings.map(entry => ({
+        skill: (entry.skill || '').trim(),
+        rating: ['S', 'NI', 'F', 'NA'].includes(entry.rating) ? entry.rating : 'NA',
+        comments: (entry.comments || '').trim()
+      })).filter(entry => entry.skill);
+    }
+
+    callSheet.evaluatorId = req.user._id;
+    callSheet.candidateSignature = { signedBy: null, signedAt: null, name: '' };
+    callSheet.evaluatorSignature = { signedBy: null, signedAt: null, name: '' };
+    callSheet.rescueOfficerSignature = { signedBy: null, signedAt: null, name: '' };
+    callSheet.status = 'awaiting_candidate_signature';
+    callSheet.completedAt = null;
+
+    if (packet.status === 'approved' || packet.status === 'pending_more_evaluation') {
+      packet.status = 'in_progress';
+      packet.finalReview.decision = 'pending';
+    }
+
+    await packet.save();
+    return res.json({ success: true, status: callSheet.status });
+  } catch (err) {
+    console.error('Error saving call sheet:', err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/demo/attendant-packet/:id/calls/:callNumber/candidate-sign', isAuthenticated, async (req, res) => {
+  try {
+    const packet = await AttendantPacket.findById(req.params.id);
+    if (!packet) {
+      return res.status(404).json({ success: false, error: 'Packet not found.' });
+    }
+
+    if (packet.candidate.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ success: false, error: 'Only the candidate can sign this section.' });
+    }
+
+    const callSheet = findCallSheet(packet, req.params.callNumber);
+    if (!callSheet) {
+      return res.status(404).json({ success: false, error: 'Call sheet not found.' });
+    }
+
+    callSheet.candidateSignature = {
+      signedBy: req.user._id,
+      signedAt: new Date(),
+      name: req.user.displayName || req.user.email
+    };
+    callSheet.status = 'awaiting_evaluator_signature';
+    await packet.save();
+
+    return res.json({ success: true, status: callSheet.status });
+  } catch (err) {
+    console.error('Error candidate-signing call sheet:', err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/demo/attendant-packet/:id/calls/:callNumber/evaluator-sign', isAuthenticated, async (req, res) => {
+  try {
+    if (!canEvaluateCallSheet(req.user)) {
+      return res.status(403).json({ success: false, error: 'Only evaluators/officers can sign this section.' });
+    }
+
+    const packet = await AttendantPacket.findById(req.params.id);
+    if (!packet) {
+      return res.status(404).json({ success: false, error: 'Packet not found.' });
+    }
+
+    const callSheet = findCallSheet(packet, req.params.callNumber);
+    if (!callSheet) {
+      return res.status(404).json({ success: false, error: 'Call sheet not found.' });
+    }
+
+    callSheet.evaluatorSignature = {
+      signedBy: req.user._id,
+      signedAt: new Date(),
+      name: req.user.displayName || req.user.email
+    };
+    callSheet.status = 'awaiting_rescue_officer_signature';
+    await packet.save();
+
+    return res.json({ success: true, status: callSheet.status });
+  } catch (err) {
+    console.error('Error evaluator-signing call sheet:', err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/demo/attendant-packet/:id/calls/:callNumber/rescue-officer-sign', isAuthenticated, async (req, res) => {
+  try {
+    if (!canRescueOfficerSign(req.user)) {
+      return res.status(403).json({ success: false, error: 'Only rescue officers can sign this section.' });
+    }
+
+    const packet = await AttendantPacket.findById(req.params.id);
+    if (!packet) {
+      return res.status(404).json({ success: false, error: 'Packet not found.' });
+    }
+
+    const callSheet = findCallSheet(packet, req.params.callNumber);
+    if (!callSheet) {
+      return res.status(404).json({ success: false, error: 'Call sheet not found.' });
+    }
+
+    callSheet.rescueOfficerId = req.user._id;
+    callSheet.rescueOfficerSignature = {
+      signedBy: req.user._id,
+      signedAt: new Date(),
+      name: req.user.displayName || req.user.email
+    };
+    callSheet.status = 'completed';
+    callSheet.completedAt = new Date();
+
+    const completedCount = packet.callSheets.filter(call => call.status === 'completed').length;
+    if (packet.eligibilityPath === 'trips' && completedCount >= 12) {
+      packet.status = 'pending_chief_review';
+    }
+
+    await packet.save();
+    await syncAttendantProgressFromPacket(packet);
+
+    return res.json({ success: true, status: callSheet.status, completedCalls: completedCount });
+  } catch (err) {
+    console.error('Error officer-signing call sheet:', err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/demo/attendant-packet/:id/final-review', isAuthenticated, async (req, res) => {
+  try {
+    if (!canPerformFinalReview(req.user)) {
+      return res.status(403).json({ success: false, error: 'Only rescue chief/officer roles can complete final review.' });
+    }
+
+    const packet = await AttendantPacket.findById(req.params.id);
+    if (!packet) {
+      return res.status(404).json({ success: false, error: 'Packet not found.' });
+    }
+
+    const decision = ['approved', 'pending_more_evaluation'].includes(req.body.decision)
+      ? req.body.decision
+      : 'pending_more_evaluation';
+
+    packet.finalReview.decision = decision;
+    packet.finalReview.comments = (req.body.comments || '').trim();
+    packet.finalReview.firstAttendantCompletionDate = parseDateOrNull(req.body.firstAttendantCompletionDate) || new Date();
+    packet.finalReview.rescueChiefSignature = {
+      signedBy: req.user._id,
+      signedAt: new Date(),
+      name: req.user.displayName || req.user.email
+    };
+
+    if (decision === 'approved') {
+      packet.status = 'approved';
+      await awardAttendantQualificationForUser(packet.candidate, req.user._id);
+    } else {
+      packet.status = 'pending_more_evaluation';
+    }
+
+    await packet.save();
+    return res.json({ success: true, status: packet.status });
+  } catch (err) {
+    console.error('Error saving final review:', err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
 });
 
 // Save attendant progress
@@ -496,39 +1107,7 @@ app.post('/demo/award-attendant-qualification', isAuthenticated, async (req, res
       return res.status(400).json({ success: false, error: 'Not all calls are completed' });
     }
 
-    // Find or create the attendant qualification
-    let qualification = await Qualification.findOne({ name: 'Attendant' });
-    if (!qualification) {
-      qualification = new Qualification({
-        name: 'Attendant',
-        description: 'Completed 12 calls as an attendant',
-        requiredClasses: [],
-        createdBy: req.user._id
-      });
-      await qualification.save();
-    }
-
-    // Create or update user qualification
-    let userQualification = await UserQualification.findOne({
-      user: req.user._id,
-      qualification: qualification._id
-    });
-
-    if (!userQualification) {
-      userQualification = new UserQualification({
-        user: req.user._id,
-        qualification: qualification._id,
-        isComplete: true,
-        earnedDate: new Date(),
-        lastUpdated: new Date()
-      });
-    } else {
-      userQualification.isComplete = true;
-      userQualification.earnedDate = new Date();
-      userQualification.lastUpdated = new Date();
-    }
-
-    await userQualification.save();
+    await awardAttendantQualificationForUser(req.user._id, req.user._id);
     res.json({ success: true });
   } catch (err) {
     console.error('Error awarding attendant qualification:', err);
@@ -563,6 +1142,7 @@ app.post('/demo/remove-attendant-qualification', isAuthenticated, async (req, re
 
     // Reset attendant progress
     await AttendantProgress.deleteOne({ user: userId });
+    await AttendantPacket.deleteMany({ candidate: userId });
 
     res.json({ success: true });
   } catch (err) {

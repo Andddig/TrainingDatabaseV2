@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Attendant Packet Queue - Training Database</title>
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <%- include('./partials/header', { user }) %>
+
+  <div class="container mt-4 mb-5">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <div>
+        <h1 class="mb-1">Attendant Packet Queue</h1>
+        <p class="text-muted mb-0">Role-based pending tasks for Evaluator, Rescue Officer, and Rescue Chief review.</p>
+      </div>
+      <a id="openPacketWorkspaceButton" href="/demo/attendant-packet" class="btn btn-outline-primary">Open Packet Workspace</a>
+    </div>
+
+    <% if (canEvaluateCallSheet) { %>
+      <div class="card mb-4">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+          <h5 class="mb-0">Evaluator Queue</h5>
+          <span class="badge badge-light"><%= evaluatorQueue.length %> pending</span>
+        </div>
+        <div class="card-body p-0">
+          <% if (!evaluatorQueue.length) { %>
+            <p class="m-3 text-muted">No call sheets are waiting for evaluator signature.</p>
+          <% } else { %>
+            <div class="table-responsive">
+              <table class="table table-striped mb-0">
+                <thead>
+                  <tr>
+                    <th>Candidate</th>
+                    <th>Call #</th>
+                    <th>Incident Date</th>
+                    <th>FC Incident #</th>
+                    <th>Updated</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% evaluatorQueue.forEach(item => { %>
+                    <tr>
+                      <td><%= item.candidateName %></td>
+                      <td><%= item.callNumber %></td>
+                      <td><%= item.incidentDate ? new Date(item.incidentDate).toLocaleDateString() : '—' %></td>
+                      <td><%= item.fcIncidentNumber || '—' %></td>
+                      <td><%= new Date(item.updatedAt).toLocaleString() %></td>
+                      <td>
+                        <a class="btn btn-sm btn-primary" href="/demo/attendant-packet?packet=<%= item.packetId %>#collapse<%= item.callNumber %>">Open</a>
+                      </td>
+                    </tr>
+                  <% }) %>
+                </tbody>
+              </table>
+            </div>
+          <% } %>
+        </div>
+      </div>
+    <% } %>
+
+    <% if (canRescueOfficerSign) { %>
+      <div class="card mb-4">
+        <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+          <h5 class="mb-0">Rescue Officer Queue</h5>
+          <span class="badge badge-light"><%= rescueOfficerQueue.length %> pending</span>
+        </div>
+        <div class="card-body p-0">
+          <% if (!rescueOfficerQueue.length) { %>
+            <p class="m-3 text-muted">No call sheets are waiting for rescue officer signature.</p>
+          <% } else { %>
+            <div class="table-responsive">
+              <table class="table table-striped mb-0">
+                <thead>
+                  <tr>
+                    <th>Candidate</th>
+                    <th>Call #</th>
+                    <th>Incident Date</th>
+                    <th>FC Incident #</th>
+                    <th>Sponsoring Officer</th>
+                    <th>Updated</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% rescueOfficerQueue.forEach(item => { %>
+                    <tr>
+                      <td><%= item.candidateName %></td>
+                      <td><%= item.callNumber %></td>
+                      <td><%= item.incidentDate ? new Date(item.incidentDate).toLocaleDateString() : '—' %></td>
+                      <td><%= item.fcIncidentNumber || '—' %></td>
+                      <td><%= item.sponsoringRescueOfficer || '—' %></td>
+                      <td><%= new Date(item.updatedAt).toLocaleString() %></td>
+                      <td>
+                        <a class="btn btn-sm btn-success" href="/demo/attendant-packet?packet=<%= item.packetId %>#collapse<%= item.callNumber %>">Open</a>
+                      </td>
+                    </tr>
+                  <% }) %>
+                </tbody>
+              </table>
+            </div>
+          <% } %>
+        </div>
+      </div>
+    <% } %>
+
+    <% if (canPerformFinalReview) { %>
+      <div class="card">
+        <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+          <h5 class="mb-0">Rescue Chief Final Review Queue</h5>
+          <span class="badge badge-light"><%= rescueChiefQueue.length %> pending</span>
+        </div>
+        <div class="card-body p-0">
+          <% if (!rescueChiefQueue.length) { %>
+            <p class="m-3 text-muted">No packets are waiting for final chief review.</p>
+          <% } else { %>
+            <div class="table-responsive">
+              <table class="table table-striped mb-0">
+                <thead>
+                  <tr>
+                    <th>Candidate</th>
+                    <th>Eligibility Path</th>
+                    <th>Completed Calls</th>
+                    <th>Assigned Chief</th>
+                    <th>Updated</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% rescueChiefQueue.forEach(item => { %>
+                    <tr>
+                      <td><%= item.candidateName %></td>
+                      <td><%= item.eligibilityPath.replace(/_/g, ' ') %></td>
+                      <td><%= item.completedCalls %>/12</td>
+                      <td><%= item.rescueChief || '—' %></td>
+                      <td><%= new Date(item.updatedAt).toLocaleString() %></td>
+                      <td>
+                        <a class="btn btn-sm btn-dark" href="/demo/attendant-packet?packet=<%= item.packetId %>#final-review">Open</a>
+                      </td>
+                    </tr>
+                  <% }) %>
+                </tbody>
+              </table>
+            </div>
+          <% } %>
+        </div>
+      </div>
+    <% } %>
+  </div>
+
+  <%- include('./partials/footer') %>
+  <%- include('./partials/scripts') %>
+  <script>
+    (function () {
+      const openWorkspaceButton = document.getElementById('openPacketWorkspaceButton');
+      if (!openWorkspaceButton) {
+        return;
+      }
+
+      openWorkspaceButton.addEventListener('click', function (event) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        window.location.href = this.href;
+      });
+    })();
+  </script>
+</body>
+</html>

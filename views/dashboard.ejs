@@ -120,6 +120,15 @@
                       <small class="text-muted">Review and approve training submissions</small>
                     </a>
                   <% } %>
+                  <% if (user.isAdmin || user.roles.includes('Approver') || user.roles.includes('Training Officer') || user.roles.includes('Rescue Officer') || user.roles.includes('Evaluator') || user.roles.includes('Rescue Chief')) { %>
+                    <a href="/demo/attendant-packet-queue" class="list-group-item list-group-item-action">
+                      <div class="d-flex w-100 justify-content-between">
+                        <h6 class="mb-1">Attendant Packet Queue</h6>
+                        <small><i class="fas fa-arrow-right"></i></small>
+                      </div>
+                      <small class="text-muted">Open role-based packet tasks</small>
+                    </a>
+                  <% } %>
                   <% if (user.roles.includes('Training Officer') || user.isAdmin) { %>
                     <a href="/training/manage-classes" class="list-group-item list-group-item-action">
                       <div class="d-flex w-100 justify-content-between">

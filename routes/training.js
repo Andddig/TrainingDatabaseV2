@@ -50,7 +50,7 @@ const isAdmin = (req, res, next) => {
   });
 };
 
-const ALLOWED_ROLES = ['Student', 'Approver', 'Training Officer'];
+const ALLOWED_ROLES = ['Student', 'Approver', 'Training Officer', 'Rescue Officer', 'Evaluator', 'Rescue Chief'];
 
 const normalizeRoles = (roles) => {
   const roleList = Array.isArray(roles) ? roles : (roles ? [roles] : ['Student']);

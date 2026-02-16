@@ -73,6 +73,18 @@
                   <input type="checkbox" class="custom-control-input" id="add-role-officer" name="roles" value="Training Officer">
                   <label class="custom-control-label" for="add-role-officer">Training Officer</label>
                 </div>
+                <div class="custom-control custom-checkbox">
+                  <input type="checkbox" class="custom-control-input" id="add-role-rescue-officer" name="roles" value="Rescue Officer">
+                  <label class="custom-control-label" for="add-role-rescue-officer">Rescue Officer</label>
+                </div>
+                <div class="custom-control custom-checkbox">
+                  <input type="checkbox" class="custom-control-input" id="add-role-evaluator" name="roles" value="Evaluator">
+                  <label class="custom-control-label" for="add-role-evaluator">Evaluator</label>
+                </div>
+                <div class="custom-control custom-checkbox">
+                  <input type="checkbox" class="custom-control-input" id="add-role-rescue-chief" name="roles" value="Rescue Chief">
+                  <label class="custom-control-label" for="add-role-rescue-chief">Rescue Chief</label>
+                </div>
               </div>
               <div class="custom-control custom-checkbox mb-3">
                 <input type="checkbox" class="custom-control-input" id="add-is-admin" name="isAdmin">
@@ -141,6 +153,24 @@
                             name="roles" value="Training Officer" 
                             <%= userItem.roles && userItem.roles.includes('Training Officer') ? 'checked' : '' %>>
                           <label class="custom-control-label" for="role-officer-<%= userItem._id %>">Training Officer</label>
+                        </div>
+                        <div class="custom-control custom-checkbox">
+                          <input type="checkbox" class="custom-control-input" id="role-rescue-officer-<%= userItem._id %>" 
+                            name="roles" value="Rescue Officer" 
+                            <%= userItem.roles && userItem.roles.includes('Rescue Officer') ? 'checked' : '' %>>
+                          <label class="custom-control-label" for="role-rescue-officer-<%= userItem._id %>">Rescue Officer</label>
+                        </div>
+                        <div class="custom-control custom-checkbox">
+                          <input type="checkbox" class="custom-control-input" id="role-evaluator-<%= userItem._id %>" 
+                            name="roles" value="Evaluator" 
+                            <%= userItem.roles && userItem.roles.includes('Evaluator') ? 'checked' : '' %>>
+                          <label class="custom-control-label" for="role-evaluator-<%= userItem._id %>">Evaluator</label>
+                        </div>
+                        <div class="custom-control custom-checkbox">
+                          <input type="checkbox" class="custom-control-input" id="role-rescue-chief-<%= userItem._id %>" 
+                            name="roles" value="Rescue Chief" 
+                            <%= userItem.roles && userItem.roles.includes('Rescue Chief') ? 'checked' : '' %>>
+                          <label class="custom-control-label" for="role-rescue-chief-<%= userItem._id %>">Rescue Chief</label>
                         </div>
                       </div>
                   </td>
