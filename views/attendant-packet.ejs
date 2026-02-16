@@ -44,11 +44,119 @@
       <a class="btn btn-outline-secondary" id="backToDemoPortalButton" href="/demo-portal">Back to Demo Portal</a>
     </div>
 
+    <% const statusOptions = packets.reduce((acc, pkt) => {
+         const raw = pkt.status || 'unknown';
+         const value = raw.toLowerCase();
+         if (!acc.some(option => option.value === value)) {
+           acc.push({ value, label: raw.replace(/_/g, ' ') });
+         }
+         return acc;
+       }, []);
+    %>
+
+    <section class="packet-selection-section mb-5">
+      <div class="packet-selection-header d-flex justify-content-between align-items-start flex-wrap">
+        <div>
+          <p class="packet-selection-subtitle mb-1 text-muted">Choose or resume the packet you need to work on.</p>
+          <h2 class="packet-selection-title mb-0">Packet Selection</h2>
+        </div>
+        <div class="packet-selection-meta d-flex align-items-center flex-wrap">
+          <span class="badge badge-pill badge-light packet-selection-count"><%= packets.length %> packet<%= packets.length === 1 ? '' : 's' %></span>
+          <% if (canCreatePacket) { %>
+            <button type="button" class="btn btn-outline-light btn-sm packet-selection-new" data-create-packet data-packet-setup-mode="launcher">Start a new packet</button>
+          <% } %>
+        </div>
+      </div>
+
+      <div class="packet-selection-filters row align-items-end mt-3">
+        <div class="col-md-6 mb-2">
+          <label class="sr-only" for="packetSearchInput">Search packets</label>
+          <input id="packetSearchInput" class="form-control form-control-sm packet-search" type="search" placeholder="Search candidate, officer, or status...">
+        </div>
+        <div class="col-md-4 mb-2">
+          <label class="sr-only" for="packetStatusFilter">Filter by status</label>
+          <select id="packetStatusFilter" class="form-control form-control-sm">
+            <option value="">All statuses</option>
+            <% statusOptions.forEach(option => { %>
+              <option value="<%= option.value %>" <%= packet && packet.status && packet.status.toLowerCase() === option.value ? 'selected' : '' %>><%= option.label %></option>
+            <% }) %>
+          </select>
+        </div>
+        <div class="col-md-2 mb-2 text-right text-md-left">
+          <span class="text-muted packet-selection-hint">Click a card to open.</span>
+        </div>
+      </div>
+
+      <% if (!packets.length) { %>
+        <div class="packet-selection-empty">
+          <p>No packets yet. Use the setup form below to capture your first call log.</p>
+        </div>
+      <% } else { %>
+        <div class="packet-selection-grid mt-3">
+          <% packets.forEach(pkt => {
+               const candidateName = pkt.candidate && pkt.candidate.displayName ? pkt.candidate.displayName : 'Unknown Candidate';
+               const officerName = pkt.sponsoringRescueOfficer && pkt.sponsoringRescueOfficer.displayName ? pkt.sponsoringRescueOfficer.displayName : 'Not assigned';
+               const normalizedStatus = (pkt.status || 'unknown').toLowerCase();
+               const friendlyStatus = (pkt.status || 'Unknown').replace(/_/g, ' ');
+               const completedCallSheetCount = Array.isArray(pkt.callSheets)
+                 ? pkt.callSheets.filter(call => call.status === 'completed').length
+                 : 0;
+               const progressPercent = Math.round(Math.min(completedCallSheetCount, 12) / 12 * 100);
+          %>
+            <article class="packet-card <%= packet && packet._id && packet._id.toString() === pkt._id.toString() ? 'packet-card--active' : '' %>" tabindex="0" role="button"
+              data-packet-id="<%= pkt._id %>"
+              data-status="<%= normalizedStatus %>"
+              data-candidate="<%= candidateName %>"
+              data-officer="<%= officerName %>"
+              data-path="<%= pkt.eligibilityPath || '' %>">
+              <div class="packet-card-top">
+                <div>
+                  <p class="packet-card-label mb-1">Candidate</p>
+                  <h3 class="packet-card-title mb-1"><%= candidateName %></h3>
+                  <p class="packet-card-meta mb-0">Officer: <%= officerName %></p>
+                </div>
+                <span class="packet-status-pill"><%= friendlyStatus %></span>
+              </div>
+
+              <div class="packet-card-stats mt-3">
+                <div>
+                  <p class="packet-card-label mb-0">Calls recorded</p>
+                  <p class="packet-card-value mb-0"><%= completedCallSheetCount %>/12</p>
+                </div>
+              </div>
+
+              <div class="packet-card-progress mt-3" aria-hidden="true">
+                <div class="packet-card-progress-bar" style="width: <%= progressPercent %>%;"></div>
+              </div>
+
+              <div class="packet-card-actions">
+                <span class="packet-card-progress-text">Progress <%= progressPercent %>%</span>
+                <button type="button" class="btn btn-sm btn-light text-primary packet-card-open" data-packet-id="<%= pkt._id %>">Open packet</button>
+              </div>
+            </article>
+          <% }) %>
+        </div>
+      <% } %>
+
+      <div class="sr-only">
+        <form method="GET" action="/demo/attendant-packet" class="form-inline" id="packetSelectorForm">
+          <label class="mr-2">Active Packet</label>
+          <select class="form-control mr-2" name="packet">
+            <% packets.forEach(pkt => { %>
+              <option value="<%= pkt._id %>" <%= packet && packet._id && packet._id.toString() === pkt._id.toString() ? 'selected' : '' %>>
+                <%= pkt.candidate && pkt.candidate.displayName ? pkt.candidate.displayName : 'Unknown Candidate' %> - <%= pkt.status ? pkt.status.replace(/_/g, ' ') : 'Status unknown' %>
+              </option>
+            <% }) %>
+          </select>
+        </form>
+      </div>
+    </section>
+
     <div class="packet-cover">
       <div class="row">
         <div class="col-md-8">
           <h3 class="mb-2">EMT 2nd Attendant to EMT 1st Attendant Packet</h3>
-          <p class="mb-1">Track cover details, call evaluations, signatures, and final chief approval in one workflow.</p>
+          <p class="mb-1"></p>
           <p class="mb-0">Rating key: <strong>S</strong> Satisfactory, <strong>NI</strong> Needs Improvement, <strong>F</strong> Fail, <strong>NA</strong> Not Applicable.</p>
         </div>
         <div class="col-md-4 text-md-right mt-3 mt-md-0">
@@ -60,104 +168,100 @@
 
     <div id="alertHost" class="mb-3 alert-host" aria-live="polite"></div>
     <% if (canCreatePacket) { %>
-      <div class="card mb-4">
-        <div class="card-header">Cover Page / Packet Setup</div>
-        <div class="card-body">
-          <form id="coverForm">
-            <input type="hidden" id="packetId" name="packetId" value="<%= packet ? packet._id : '' %>">
-            <input type="hidden" id="createNewPacket" name="createNew" value="0">
-            <div class="form-row">
-              <div class="form-group col-md-4">
-                <label>EMT 2nd Attendant (Candidate)</label>
-                <select class="form-control" name="candidateId" required>
-                  <option value="">Select candidate...</option>
-                  <% users.forEach(member => { %>
-                    <option value="<%= member._id %>" <%= packet && packet.candidate && packet.candidate._id.toString() === member._id.toString() ? 'selected' : '' %>>
-                      <%= member.displayName %> (<%= member.email %>)
-                    </option>
-                  <% }); %>
-                </select>
-              </div>
-              <div class="form-group col-md-4">
-                <label>Sponsoring Rescue Officer</label>
-                <select class="form-control" name="sponsoringRescueOfficerId" required>
-                  <% users.forEach(member => { %>
-                    <option value="<%= member._id %>" <%= packet && packet.sponsoringRescueOfficer && packet.sponsoringRescueOfficer._id.toString() === member._id.toString() ? 'selected' : (member._id.toString() === user._id.toString() ? 'selected' : '') %>>
-                      <%= member.displayName %>
-                    </option>
-                  <% }); %>
-                </select>
-              </div>
-              <div class="form-group col-md-4">
-                <label>Rescue Chief</label>
-                <select class="form-control" name="rescueChiefId">
-                  <option value="">Select chief...</option>
-                  <% users.forEach(member => { %>
-                    <option value="<%= member._id %>" <%= packet && packet.rescueChief && packet.rescueChief._id.toString() === member._id.toString() ? 'selected' : '' %>>
-                      <%= member.displayName %>
-                    </option>
-                  <% }); %>
-                </select>
-              </div>
+      <div class="modal fade" id="packetSetupModal" tabindex="-1" role="dialog" aria-labelledby="packetSetupModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-centered" role="document">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="packetSetupModalLabel">Cover Page / Packet Setup</h5>
+              <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                <span aria-hidden="true">&times;</span>
+              </button>
             </div>
+            <div class="modal-body">
+              <div id="packetSetupModalAlert" class="alert d-none mb-3" role="alert" aria-live="assertive"></div>
+              <form id="coverForm" data-default-sro="<%= user._id %>">
+                <input type="hidden" id="packetId" name="packetId" value="<%= packet ? packet._id : '' %>">
+                <input type="hidden" id="createNewPacket" name="createNew" value="0">
+                <div class="form-row">
+                  <div class="form-group col-md-4">
+                    <label>EMT 2nd Attendant (Candidate)</label>
+                    <select class="form-control" name="candidateId" required>
+                      <option value="">Select candidate...</option>
+                      <% users.forEach(member => { %>
+                        <option value="<%= member._id %>" <%= packet && packet.candidate && packet.candidate._id.toString() === member._id.toString() ? 'selected' : '' %>>
+                          <%= member.displayName %> (<%= member.email %>)
+                        </option>
+                      <% }); %>
+                    </select>
+                  </div>
+                  <div class="form-group col-md-4">
+                    <label>Sponsoring Rescue Officer</label>
+                    <select class="form-control" name="sponsoringRescueOfficerId" required>
+                      <% users.forEach(member => { %>
+                        <option value="<%= member._id %>" <%= packet && packet.sponsoringRescueOfficer && packet.sponsoringRescueOfficer._id.toString() === member._id.toString() ? 'selected' : (member._id.toString() === user._id.toString() ? 'selected' : '') %>>
+                          <%= member.displayName %>
+                        </option>
+                      <% }); %>
+                    </select>
+                  </div>
+                  <div class="form-group col-md-4">
+                    <label>Rescue Chief</label>
+                    <select class="form-control" name="rescueChiefId">
+                      <option value="">Select chief...</option>
+                      <% users.forEach(member => { %>
+                        <option value="<%= member._id %>" <%= packet && packet.rescueChief && packet.rescueChief._id.toString() === member._id.toString() ? 'selected' : '' %>>
+                          <%= member.displayName %>
+                        </option>
+                      <% }); %>
+                    </select>
+                  </div>
+                </div>
 
-            <div class="form-row">
-              <div class="form-group col-md-3">
-                <label>EMT Completion Date</label>
-                <input class="form-control" type="date" name="emtCompletionDate" value="<%= packet && packet.emtCompletionDate ? packet.emtCompletionDate.toISOString().slice(0,10) : '' %>">
-              </div>
-              <div class="form-group col-md-3">
-                <label>EMT 2nd Attendant Start Date</label>
-                <input class="form-control" type="date" name="secondAttendantStartDate" value="<%= packet && packet.secondAttendantStartDate ? packet.secondAttendantStartDate.toISOString().slice(0,10) : '' %>">
-              </div>
-              <div class="form-group col-md-6">
-                <label>Path to EMT 1st Attendant</label>
-                <select class="form-control" name="eligibilityPath" id="eligibilityPath">
-                  <option value="trips" <%= !packet || packet.eligibilityPath === 'trips' ? 'selected' : '' %>>12 Emergency Trips</option>
-                  <option value="one_year" <%= packet && packet.eligibilityPath === 'one_year' ? 'selected' : '' %>>One year as 2nd Attendant</option>
-                  <option value="qualified_elsewhere" <%= packet && packet.eligibilityPath === 'qualified_elsewhere' ? 'selected' : '' %>>Already EMT 1st elsewhere</option>
-                </select>
-              </div>
+                <div class="form-row">
+                  <div class="form-group col-md-3">
+                    <label>EMT Completion Date</label>
+                    <input class="form-control" type="date" name="emtCompletionDate" value="<%= packet && packet.emtCompletionDate ? packet.emtCompletionDate.toISOString().slice(0,10) : '' %>">
+                  </div>
+                  <div class="form-group col-md-3">
+                    <label>EMT 2nd Attendant Start Date</label>
+                    <input class="form-control" type="date" name="secondAttendantStartDate" value="<%= packet && packet.secondAttendantStartDate ? packet.secondAttendantStartDate.toISOString().slice(0,10) : '' %>">
+                  </div>
+                  <div class="form-group col-md-6">
+                    <label>Path to EMT 1st Attendant</label>
+                    <select class="form-control" name="eligibilityPath" id="eligibilityPath">
+                      <option value="trips" <%= !packet || packet.eligibilityPath === 'trips' ? 'selected' : '' %>>12 Emergency Trips</option>
+                      <option value="one_year" <%= packet && packet.eligibilityPath === 'one_year' ? 'selected' : '' %>>One year as 2nd Attendant</option>
+                      <option value="qualified_elsewhere" <%= packet && packet.eligibilityPath === 'qualified_elsewhere' ? 'selected' : '' %>>Already EMT 1st elsewhere</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="form-group <%= packet && packet.eligibilityPath === 'qualified_elsewhere' ? '' : 'd-none' %>" id="elsewhereAgencyGroup">
+                  <label>Qualified Elsewhere Agency</label>
+                  <input class="form-control" type="text" name="qualifiedElsewhereAgency" value="<%= packet ? packet.qualifiedElsewhereAgency || '' : '' %>" placeholder="Company or police agency">
+                </div>
+              </form>
             </div>
-
-            <div class="form-group <%= packet && packet.eligibilityPath === 'qualified_elsewhere' ? '' : 'd-none' %>" id="elsewhereAgencyGroup">
-              <label>Qualified Elsewhere Agency</label>
-              <input class="form-control" type="text" name="qualifiedElsewhereAgency" value="<%= packet ? packet.qualifiedElsewhereAgency || '' : '' %>" placeholder="Company or police agency">
+            <div class="modal-footer">
+              <button type="submit" form="coverForm" class="btn btn-primary" id="saveCoverButton">Save Cover Page</button>
+              <button type="button" class="btn btn-outline-primary" id="createPacketBtn" data-create-packet>Create New Packet</button>
             </div>
-
-            <button type="submit" class="btn btn-primary mr-2">Save Cover Page</button>
-            <button type="button" class="btn btn-outline-primary" id="createPacketBtn">Create New Packet</button>
-          </form>
+          </div>
         </div>
       </div>
     <% } %>
 
-    <div class="card mb-3">
-      <div class="card-header d-flex justify-content-between align-items-center">
-        <span>Packet Selection</span>
-        <span class="badge badge-secondary"><%= packets.length %> packets</span>
-      </div>
-      <div class="card-body">
-        <% if (!packets.length) { %>
-          <p class="mb-0">No packet exists yet. <% if (canCreatePacket) { %>Use Cover Page / Packet Setup above to create one.<% } %></p>
-        <% } else { %>
-          <form method="GET" action="/demo/attendant-packet" class="form-inline" id="packetSelectorForm">
-            <label class="mr-2">Active Packet</label>
-            <select class="form-control mr-2" name="packet">
-              <% packets.forEach(pkt => { %>
-                <option value="<%= pkt._id %>" <%= packet && packet._id.toString() === pkt._id.toString() ? 'selected' : '' %>>
-                  <%= pkt.candidate && pkt.candidate.displayName ? pkt.candidate.displayName : 'Unknown Candidate' %> - <%= pkt.status.replace(/_/g, ' ') %>
-                </option>
-              <% }) %>
-            </select>
-          </form>
-        <% } %>
-      </div>
-    </div>
-
     <% if (packet) { %>
       <div class="card mb-4">
-        <div class="card-header">Cover Summary</div>
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span>Cover Summary</span>
+          <div class="d-flex gap-2">
+            <% if (canCreatePacket) { %>
+              <button type="button" class="btn btn-sm btn-outline-primary" id="editCoverSheetButton">Edit Cover Sheet</button>
+            <% } %>
+            <button type="button" class="btn btn-sm btn-outline-secondary" data-toggle="modal" data-target="#pdfScopeModal">Export PDF</button>
+          </div>
+        </div>
         <div class="card-body">
           <div class="row">
             <div class="col-md-6">
@@ -336,6 +440,35 @@
           </div>
         </div>
       <% } %>
+
+      <div class="modal fade" id="pdfScopeModal" tabindex="-1" role="dialog" aria-labelledby="pdfScopeModalLabel" aria-hidden="true">
+        <div class="modal-dialog" role="document">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="pdfScopeModalLabel">Export Packet PDF</h5>
+              <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                <span aria-hidden="true">&times;</span>
+              </button>
+            </div>
+            <form method="get" action="/training/attendant-packets/<%= packet._id %>/pdf">
+              <div class="modal-body">
+                <div class="form-group">
+                  <label for="pdfScopeSelect">What should the PDF include?</label>
+                  <select id="pdfScopeSelect" class="form-control" name="scope">
+                    <option value="full">Full packet (all calls & cover sheet)</option>
+                    <option value="completed">Completed calls only</option>
+                    <option value="summary">Summary cover and final review</option>
+                  </select>
+                </div>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-primary">Download PDF</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
     <% } %>
 
     <div id="packetRuntime"
@@ -369,6 +502,24 @@
         host.prepend(wrapper);
         setTimeout(() => wrapper.remove(), 5000);
       }
+
+      const packetSetupModalAlert = document.getElementById('packetSetupModalAlert');
+      const showModalAlert = (message, type = 'danger') => {
+        if (!packetSetupModalAlert) {
+          showAlert(message, type);
+          return;
+        }
+        packetSetupModalAlert.classList.remove('d-none', 'alert-danger', 'alert-success');
+        packetSetupModalAlert.classList.add('alert', `alert-${type}`);
+        packetSetupModalAlert.textContent = message;
+      };
+      const clearModalAlert = () => {
+        if (!packetSetupModalAlert) {
+          return;
+        }
+        packetSetupModalAlert.classList.add('d-none');
+        packetSetupModalAlert.textContent = '';
+      };
 
       const pulseCandidateField = () => {
         if (!coverForm) {
@@ -406,12 +557,118 @@
       }
 
       const coverForm = document.getElementById('coverForm');
-      const createPacketBtn = document.getElementById('createPacketBtn');
-      if (createPacketBtn && coverForm) {
-        createPacketBtn.addEventListener('click', async () => {
-          document.getElementById('createNewPacket').value = '1';
-          document.getElementById('packetId').value = '';
-          coverForm.requestSubmit();
+      const packetSetupModalElement = document.getElementById('packetSetupModal');
+      const modalSaveButton = document.getElementById('saveCoverButton');
+      const modalCreateButton = document.getElementById('createPacketBtn');
+      const setModalActionMode = (mode) => {
+        const isEdit = mode === 'edit';
+        if (modalSaveButton) {
+          modalSaveButton.classList.toggle('d-none', !isEdit);
+        }
+        if (modalCreateButton) {
+          modalCreateButton.classList.toggle('d-none', isEdit);
+        }
+      };
+      const showPacketSetupModal = () => {
+        if (!packetSetupModalElement) {
+          return;
+        }
+        const mode = packetSetupModalElement.dataset.mode || 'create';
+        setModalActionMode(mode);
+        clearModalAlert();
+        if (window.jQuery && typeof window.jQuery(packetSetupModalElement).modal === 'function') {
+          window.jQuery(packetSetupModalElement).modal('show');
+          return;
+        }
+        packetSetupModalElement.classList.add('show');
+        packetSetupModalElement.style.display = 'block';
+        packetSetupModalElement.setAttribute('aria-hidden', 'false');
+      };
+
+      const editCoverSheetButton = document.getElementById('editCoverSheetButton');
+      if (editCoverSheetButton) {
+        editCoverSheetButton.addEventListener('click', (event) => {
+          event.preventDefault();
+          if (!packetSetupModalElement) {
+            showAlert('Packet setup form is not available.', 'danger');
+            return;
+          }
+          packetSetupModalElement.dataset.mode = 'edit';
+          const createFlag = document.getElementById('createNewPacket');
+          if (createFlag) {
+            createFlag.value = '0';
+          }
+          setModalActionMode('edit');
+          showPacketSetupModal();
+        });
+      }
+
+      const prepareNewPacketForm = () => {
+        if (!coverForm) {
+          return;
+        }
+        if (packetSetupModalElement) {
+          packetSetupModalElement.dataset.mode = 'create';
+        }
+        const setFieldValue = (name, value) => {
+          const field = coverForm.querySelector(`[name="${name}"]`);
+          if (field) {
+            field.value = value;
+            field.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+        };
+        const packetIdField = document.getElementById('packetId');
+        if (packetIdField) {
+          packetIdField.value = '';
+        }
+        const createFlag = document.getElementById('createNewPacket');
+        if (createFlag) {
+          createFlag.value = '0';
+        }
+        setModalActionMode('create');
+        setFieldValue('candidateId', '');
+        setFieldValue('rescueChiefId', '');
+        setFieldValue('emtCompletionDate', '');
+        setFieldValue('secondAttendantStartDate', '');
+        setFieldValue('qualifiedElsewhereAgency', '');
+        const eligibilityPathField = document.getElementById('eligibilityPath');
+        if (eligibilityPathField) {
+          eligibilityPathField.value = 'trips';
+          eligibilityPathField.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        const defaultSroId = coverForm.dataset.defaultSro || '';
+        if (defaultSroId) {
+          setFieldValue('sponsoringRescueOfficerId', defaultSroId);
+        }
+      };
+      const createPacketTriggers = Array.from(document.querySelectorAll('[data-create-packet]'));
+      const triggerCreatePacket = () => {
+        if (!coverForm) {
+          showAlert('Packet setup form is not available.', 'danger');
+          return;
+        }
+        const createFlag = document.getElementById('createNewPacket');
+        if (createFlag) {
+          createFlag.value = '1';
+        }
+        const packetIdField = document.getElementById('packetId');
+        if (packetIdField) {
+          packetIdField.value = '';
+        }
+        coverForm.requestSubmit();
+      };
+
+      if (createPacketTriggers.length) {
+        createPacketTriggers.forEach(trigger => {
+          trigger.addEventListener('click', (event) => {
+            event.preventDefault();
+            if (trigger.dataset.packetSetupMode === 'launcher') {
+              prepareNewPacketForm();
+              showPacketSetupModal();
+              return;
+            }
+            triggerCreatePacket();
+          });
         });
       }
 
@@ -431,7 +688,13 @@
               window.location.href = `/demo/attendant-packet?packet=${newPacketId}`;
             }
           } catch (error) {
-            showAlert(error.message, 'danger');
+            const duplicateText = 'already has an attendant packet';
+            const message = error.message || 'Request failed';
+            if (message.toLowerCase().includes(duplicateText)) {
+              showModalAlert(message, 'danger');
+            } else {
+              showAlert(message, 'danger');
+            }
             pulseCandidateField();
           } finally {
             const createFlag = document.getElementById('createNewPacket');
@@ -558,13 +821,70 @@
       };
 
       openTargetFromHash();
+      const navigateToPacket = (selectedId) => {
+        if (!selectedId) {
+          return;
+        }
+        const nextUrl = new URL(window.location.href);
+        nextUrl.hash = '';
+        nextUrl.searchParams.set('packet', selectedId);
+        window.location.assign(nextUrl.toString());
+      };
+
+      const packetSearchInput = document.getElementById('packetSearchInput');
+      const packetStatusFilter = document.getElementById('packetStatusFilter');
+      const packetCards = Array.from(document.querySelectorAll('.packet-card'));
+      const filterPacketCards = () => {
+        if (!packetCards.length) {
+          return;
+        }
+        const searchValue = packetSearchInput ? packetSearchInput.value.trim().toLowerCase() : '';
+        const statusValue = packetStatusFilter ? packetStatusFilter.value : '';
+        packetCards.forEach((card) => {
+          const candidate = card.dataset.candidate ? card.dataset.candidate.toLowerCase() : '';
+          const officer = card.dataset.officer ? card.dataset.officer.toLowerCase() : '';
+          const path = card.dataset.path ? card.dataset.path.toLowerCase() : '';
+          const status = card.dataset.status || '';
+          const matchesSearch = !searchValue || [candidate, officer, path, status].some(text => text.includes(searchValue));
+          const matchesStatus = !statusValue || status === statusValue;
+          const shouldShow = matchesSearch && matchesStatus;
+          card.classList.toggle('d-none', !shouldShow);
+        });
+      };
+
+      if (packetSearchInput) {
+        packetSearchInput.addEventListener('input', filterPacketCards);
+      }
+      if (packetStatusFilter) {
+        packetStatusFilter.addEventListener('change', filterPacketCards);
+      }
+      filterPacketCards();
+
+      const navigateFromCard = (packetIdValue) => {
+        navigateToPacket(packetIdValue);
+      };
+
+      packetCards.forEach((card) => {
+        card.addEventListener('click', () => navigateFromCard(card.dataset.packetId));
+        card.addEventListener('keydown', (event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            navigateFromCard(card.dataset.packetId);
+          }
+        });
+      });
+
+      document.querySelectorAll('.packet-card-open').forEach((btn) => {
+        btn.addEventListener('click', (event) => {
+          event.stopPropagation();
+          navigateFromCard(btn.dataset.packetId);
+        });
+      });
+
       const packetSelect = document.querySelector('select[name="packet"]');
       if (packetSelect) {
         packetSelect.addEventListener('change', () => {
-          const nextUrl = new URL(window.location.href);
-          nextUrl.hash = '';
-          nextUrl.searchParams.set('packet', packetSelect.value);
-          window.location.assign(nextUrl.toString());
+          navigateToPacket(packetSelect.value);
         });
       }
     })();

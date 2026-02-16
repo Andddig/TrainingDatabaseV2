@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Attendant Packet PDF</title>
+  <link rel="stylesheet" href="/css/bootstrap.min.css">
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      font-size: 12px;
+      color: #212529;
+    }
+    .page-title {
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 0.25rem;
+    }
+    .subtitle {
+      color: #6c757d;
+      margin-bottom: 1rem;
+    }
+    .label {
+      font-weight: 700;
+    }
+    .section-title {
+      font-size: 15px;
+      font-weight: 700;
+      margin-top: 1.25rem;
+      margin-bottom: 0.5rem;
+      border-bottom: 1px solid #dee2e6;
+      padding-bottom: 0.25rem;
+    }
+    .call-sheet {
+      page-break-inside: avoid;
+      border: 1px solid #dee2e6;
+      border-radius: 4px;
+      padding: 0.75rem;
+      margin-bottom: 0.9rem;
+    }
+    .call-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.5rem;
+    }
+    .badge-status {
+      padding: 0.2rem 0.5rem;
+      border-radius: 12px;
+      border: 1px solid #ced4da;
+      font-size: 11px;
+      text-transform: uppercase;
+    }
+    .table td,
+    .table th {
+      padding: 0.3rem;
+      font-size: 11px;
+      vertical-align: top;
+    }
+    .signature-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 0.75rem;
+    }
+    .signature-box {
+      border: 1px solid #dee2e6;
+      border-radius: 4px;
+      padding: 0.5rem;
+      min-height: 74px;
+    }
+    .muted {
+      color: #6c757d;
+    }
+    @media print {
+      .call-sheet,
+      .signature-box,
+      .card {
+        break-inside: avoid;
+      }
+    }
+  </style>
+</head>
+<body>
+  <% const candidateName = packet.candidate && packet.candidate.displayName ? packet.candidate.displayName : 'Unknown Candidate'; %>
+  <% const officerName = packet.sponsoringRescueOfficer && packet.sponsoringRescueOfficer.displayName ? packet.sponsoringRescueOfficer.displayName : 'Not assigned'; %>
+  <% const chiefName = packet.rescueChief && packet.rescueChief.displayName ? packet.rescueChief.displayName : 'Not assigned'; %>
+
+  <div class="mb-3">
+    <div class="page-title">EMT Attendant Packet</div>
+    <div class="subtitle">Generated <%= generatedAt.toLocaleString() %> · Scope: <%= scope %></div>
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-body py-2">
+      <div class="row">
+        <div class="col-6">
+          <div><span class="label">Candidate:</span> <%= candidateName %></div>
+          <div><span class="label">Sponsoring Rescue Officer:</span> <%= officerName %></div>
+          <div><span class="label">Rescue Chief:</span> <%= chiefName %></div>
+        </div>
+        <div class="col-6">
+          <div><span class="label">Packet Status:</span> <%= (packet.status || 'unknown').replace(/_/g, ' ') %></div>
+          <div><span class="label">Completed Calls:</span> <%= completedCallCount %>/12</div>
+          <div><span class="label">Eligibility Path:</span> <%= (packet.eligibilityPath || 'trips').replace(/_/g, ' ') %><%= packet.eligibilityPath === 'qualified_elsewhere' && packet.qualifiedElsewhereAgency ? ` (${packet.qualifiedElsewhereAgency})` : '' %></div>
+        </div>
+      </div>
+      <div class="row mt-2">
+        <div class="col-6"><span class="label">EMT Completion Date:</span> <%= packet.emtCompletionDate ? packet.emtCompletionDate.toDateString() : 'N/A' %></div>
+        <div class="col-6"><span class="label">2nd Attendant Start Date:</span> <%= packet.secondAttendantStartDate ? packet.secondAttendantStartDate.toDateString() : 'N/A' %></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-title">Final Review</div>
+  <div class="card mb-3">
+    <div class="card-body py-2">
+      <div><span class="label">Decision:</span> <%= packet.finalReview && packet.finalReview.decision ? packet.finalReview.decision.replace(/_/g, ' ') : 'pending' %></div>
+      <div><span class="label">Completion Date:</span> <%= packet.finalReview && packet.finalReview.firstAttendantCompletionDate ? new Date(packet.finalReview.firstAttendantCompletionDate).toDateString() : 'N/A' %></div>
+      <div><span class="label">Rescue Chief Signature:</span>
+        <% if (packet.finalReview && packet.finalReview.rescueChiefSignature && packet.finalReview.rescueChiefSignature.signedAt) { %>
+          <%= packet.finalReview.rescueChiefSignature.name || 'Signed' %> (<%= new Date(packet.finalReview.rescueChiefSignature.signedAt).toLocaleDateString() %>)
+        <% } else { %>
+          <span class="muted">Pending signature</span>
+        <% } %>
+      </div>
+      <div class="mt-2"><span class="label">Comments:</span> <%= packet.finalReview && packet.finalReview.comments ? packet.finalReview.comments : 'None' %></div>
+    </div>
+  </div>
+
+  <% if (includeCallDetails) { %>
+    <div class="section-title">Call Sheets</div>
+    <% if (!callSheets.length) { %>
+      <p class="muted">No call sheets match this scope.</p>
+    <% } %>
+
+    <% callSheets.forEach(call => { %>
+      <section class="call-sheet">
+        <div class="call-header">
+          <div><strong>Call <%= call.callNumber %></strong></div>
+          <span class="badge-status"><%= (call.status || 'draft').replace(/_/g, ' ') %></span>
+        </div>
+
+        <div class="row mb-2">
+          <div class="col-6"><span class="label">Incident Date:</span> <%= call.incidentDate ? new Date(call.incidentDate).toDateString() : 'N/A' %></div>
+          <div class="col-6"><span class="label">Incident #:</span> <%= call.fcIncidentNumber || 'N/A' %></div>
+        </div>
+        <div class="row mb-2">
+          <div class="col-6"><span class="label">Incident Type:</span> <%= call.incidentType || 'N/A' %></div>
+          <div class="col-6"><span class="label">Patient Priority:</span> <%= call.patientPriority || 'N/A' %></div>
+        </div>
+        <div class="mb-2"><span class="label">Directions:</span> <%= call.directions || 'N/A' %></div>
+
+        <table class="table table-bordered table-sm mb-2">
+          <thead>
+            <tr>
+              <th style="width: 55%;">Skill</th>
+              <th style="width: 10%;">Rating</th>
+              <th style="width: 35%;">Comments</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% (call.skillRatings || []).forEach(skill => { %>
+              <tr>
+                <td><%= skill.skill %></td>
+                <td><%= skill.rating || 'NA' %></td>
+                <td><%= skill.comments || '' %></td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+
+        <div class="mb-2"><span class="label">Evaluator Comments:</span> <%= call.evaluatorComments || 'None' %></div>
+        <div class="mb-2"><span class="label">Independent Field Ready:</span>
+          <%= call.independentFieldReady && call.independentFieldReady.value ? call.independentFieldReady.value.replace(/_/g, ' ') : 'not evaluated' %>
+          <% if (call.independentFieldReady && call.independentFieldReady.comments) { %>
+            - <%= call.independentFieldReady.comments %>
+          <% } %>
+        </div>
+
+        <div class="signature-grid">
+          <div class="signature-box">
+            <div class="label">Candidate Signature</div>
+            <% if (call.candidateSignature && call.candidateSignature.signedAt) { %>
+              <div><%= call.candidateSignature.name || 'Signed' %></div>
+              <div><%= new Date(call.candidateSignature.signedAt).toLocaleDateString() %></div>
+            <% } else { %>
+              <div class="muted">Pending signature</div>
+            <% } %>
+          </div>
+          <div class="signature-box">
+            <div class="label">Evaluator Signature</div>
+            <% if (call.evaluatorSignature && call.evaluatorSignature.signedAt) { %>
+              <div><%= call.evaluatorSignature.name || 'Signed' %></div>
+              <div><%= new Date(call.evaluatorSignature.signedAt).toLocaleDateString() %></div>
+            <% } else { %>
+              <div class="muted">Pending signature</div>
+            <% } %>
+          </div>
+          <div class="signature-box">
+            <div class="label">Rescue Officer Signature</div>
+            <% if (call.rescueOfficerSignature && call.rescueOfficerSignature.signedAt) { %>
+              <div><%= call.rescueOfficerSignature.name || 'Signed' %></div>
+              <div><%= new Date(call.rescueOfficerSignature.signedAt).toLocaleDateString() %></div>
+            <% } else { %>
+              <div class="muted">Pending signature</div>
+            <% } %>
+          </div>
+        </div>
+      </section>
+    <% }) %>
+  <% } %>
+</body>
+</html>

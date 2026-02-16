@@ -11,6 +11,8 @@ const helmet = require('helmet');
 const cookieParser = require('cookie-parser');
 const multer = require('multer');
 const { parse } = require('csv-parse/sync');
+const ejs = require('ejs');
+const puppeteer = require('puppeteer');
 
 // Initialize Express app
 const app = express();
@@ -520,15 +522,15 @@ const canCreatePacket = (user) => {
 };
 
 const canEvaluateCallSheet = (user) => {
-  return !!user && (user.isAdmin || hasAnyRole(user, ['Evaluator', 'Rescue Officer', 'Training Officer', 'Approver']));
+  return !!user && (user.isAdmin || hasAnyRole(user, ['Evaluator']));
 };
 
 const canRescueOfficerSign = (user) => {
-  return !!user && (user.isAdmin || hasAnyRole(user, ['Rescue Officer', 'Training Officer', 'Approver']));
+  return !!user && (user.isAdmin || hasAnyRole(user, ['Rescue Officer']));
 };
 
 const canPerformFinalReview = (user) => {
-  return !!user && (user.isAdmin || hasAnyRole(user, ['Rescue Chief', 'Training Officer', 'Approver']));
+  return !!user && (user.isAdmin || hasAnyRole(user, ['Rescue Chief']));
 };
 
 const hasAttendantPacketAccess = (packet, user) => {
@@ -680,6 +682,97 @@ const parseDateOrNull = (value) => {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 };
 
+const VALID_PACKET_PDF_SCOPES = ['full', 'completed', 'summary'];
+
+const formatDateForFilename = (date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}${month}${day}`;
+};
+
+const sanitizeFilenameSegment = (value) => {
+  return (value || 'unknown')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'unknown';
+};
+
+const buildPacketPdfFilename = (packet, scope) => {
+  const candidateName = packet.candidate && packet.candidate.displayName
+    ? packet.candidate.displayName
+    : 'candidate';
+  const normalizedName = sanitizeFilenameSegment(candidateName);
+  const datePart = formatDateForFilename(new Date());
+  return `attendant-packet-${normalizedName}-${scope}-${datePart}.pdf`;
+};
+
+const getPacketCompletedCallCount = (packet) => {
+  return packet.callSheets.filter(call => call.status === 'completed').length;
+};
+
+const getPacketCallSheetsForScope = (packet, scope) => {
+  const sorted = [...packet.callSheets].sort((a, b) => a.callNumber - b.callNumber);
+
+  if (scope === 'completed') {
+    return sorted.filter(call => call.status === 'completed');
+  }
+
+  if (scope === 'summary') {
+    return [];
+  }
+
+  return sorted;
+};
+
+const buildPacketPdfViewModel = (packet, scope) => {
+  const completedCallCount = getPacketCompletedCallCount(packet);
+  const callSheets = getPacketCallSheetsForScope(packet, scope);
+
+  return {
+    packet,
+    scope,
+    callSheets,
+    completedCallCount,
+    includeCallDetails: scope !== 'summary',
+    generatedAt: new Date()
+  };
+};
+
+const renderAttendantPacketPdfHtml = async (viewModel) => {
+  const templatePath = path.join(__dirname, 'views', 'attendant-packet-pdf.ejs');
+  return ejs.renderFile(templatePath, viewModel, { async: true });
+};
+
+const generatePdfBufferFromHtml = async (html) => {
+  const launchOptions = {
+    headless: true,
+    args: ['--no-sandbox', '--disable-setuid-sandbox']
+  };
+
+  if (process.env.PUPPETEER_EXECUTABLE_PATH) {
+    launchOptions.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+  }
+
+  const browser = await puppeteer.launch(launchOptions);
+  try {
+    const page = await browser.newPage();
+    await page.setContent(html, { waitUntil: 'networkidle0' });
+    return await page.pdf({
+      format: 'Letter',
+      printBackground: true,
+      margin: {
+        top: '0.5in',
+        right: '0.5in',
+        bottom: '0.5in',
+        left: '0.5in'
+      }
+    });
+  } finally {
+    await browser.close();
+  }
+};
+
 const renderAttendantPacketView = async (req, res, template) => {
   try {
     const isPacketManager = canManageAttendantPackets(req.user);
@@ -746,6 +839,46 @@ app.get('/demo/attendant-packet', isAuthenticated, async (req, res) => {
 
 app.get('/demo/attendant-packet-old', isAuthenticated, async (req, res) => {
   await renderAttendantPacketView(req, res, 'attendant-packet-old');
+});
+
+app.get('/training/attendant-packets/:id/pdf', isAuthenticated, async (req, res) => {
+  try {
+    const requestedScope = (req.query.scope || 'full').toString().toLowerCase();
+    const scope = VALID_PACKET_PDF_SCOPES.includes(requestedScope) ? requestedScope : null;
+    if (!scope) {
+      return res.status(400).render('error', {
+        message: `Invalid scope. Allowed values: ${VALID_PACKET_PDF_SCOPES.join(', ')}`
+      });
+    }
+
+    const packet = await AttendantPacket.findById(req.params.id)
+      .populate('candidate', 'displayName email')
+      .populate('sponsoringRescueOfficer', 'displayName email')
+      .populate('rescueChief', 'displayName email')
+      .populate('callSheets.evaluatorId', 'displayName email')
+      .populate('callSheets.rescueOfficerId', 'displayName email')
+      .populate('finalReview.rescueChiefSignature.signedBy', 'displayName email');
+
+    if (!packet) {
+      return res.status(404).render('error', { message: 'Attendant packet not found.' });
+    }
+
+    if (!hasAttendantPacketAccess(packet, req.user)) {
+      return res.status(403).render('error', { message: 'Access denied.' });
+    }
+
+    const viewModel = buildPacketPdfViewModel(packet, scope);
+    const html = await renderAttendantPacketPdfHtml(viewModel);
+    const pdfBuffer = await generatePdfBufferFromHtml(html);
+    const filename = buildPacketPdfFilename(packet, scope);
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    return res.send(pdfBuffer);
+  } catch (err) {
+    console.error('Error generating attendant packet PDF:', err);
+    return res.status(500).render('error', { message: 'Error generating packet PDF' });
+  }
 });
 
 app.post('/demo/attendant-packet/cover', isAuthenticated, async (req, res) => {

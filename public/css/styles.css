@@ -42,7 +42,7 @@ a:hover {
   text-decoration: underline;
 }
 
-.container {
+body > .container {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
@@ -816,6 +816,188 @@ footer.enhanced {
 
 .alert-host {
   min-height: 0;
+}
+
+/* Packet selection hero */
+.packet-selection-section {
+  border-radius: 20px;
+  padding: 2rem;
+  background: linear-gradient(135deg, #0f172a 0%, #1d4ed8 65%, #2563eb 100%);
+  color: #f8fafc;
+  box-shadow: 0 25px 45px rgba(15, 23, 42, 0.55);
+}
+
+.packet-selection-header {
+  gap: 1rem;
+}
+
+.packet-selection-title {
+  font-size: 1.75rem;
+  font-weight: 600;
+  margin-bottom: 0;
+}
+
+.packet-selection-subtitle {
+  font-size: 0.95rem;
+}
+
+.packet-selection-meta {
+  gap: 0.5rem;
+}
+
+.packet-selection-new {
+  border-color: rgba(248, 250, 252, 0.5);
+  color: #fff;
+}
+
+.packet-selection-new:hover {
+  color: #0f172a;
+  background-color: #e0f2fe;
+}
+
+.packet-selection-filters .packet-search,
+.packet-selection-filters select {
+  background-color: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.packet-selection-filters .packet-search::placeholder {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.packet-selection-hint {
+  font-size: 0.9rem;
+}
+
+.packet-selection-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1rem;
+}
+
+.packet-card {
+  background: rgba(15, 23, 42, 0.75);
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 1.25rem;
+  color: inherit;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  min-height: 220px;
+  cursor: pointer;
+  transition: transform 0.25s ease, border 0.25s ease, box-shadow 0.25s ease;
+}
+
+.packet-card--active {
+  border-color: rgba(59, 130, 246, 0.9);
+  box-shadow: 0 25px 35px rgba(15, 23, 42, 0.6);
+  transform: translateY(-2px);
+}
+
+.packet-card-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.packet-card-title {
+  margin-bottom: 0.25rem;
+  font-size: 1.3rem;
+}
+
+.packet-card-meta {
+  font-size: 0.9rem;
+  color: rgba(248, 250, 252, 0.7);
+}
+
+.packet-status-pill {
+  padding: 0.35rem 0.9rem;
+  border-radius: 999px;
+  background-color: rgba(255, 255, 255, 0.1);
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+  text-transform: uppercase;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  white-space: nowrap;
+}
+
+.packet-card-stats {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.packet-card-divider {
+  width: 1px;
+  height: 46px;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.packet-card-label {
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(248, 250, 252, 0.6);
+}
+
+.packet-card-value {
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.packet-card-progress {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.15);
+  overflow: hidden;
+}
+
+.packet-card-progress-bar {
+  height: 100%;
+  background: linear-gradient(135deg, #38bdf8, #7dd3fc);
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+
+.packet-card-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+}
+
+.packet-card-progress-text {
+  color: rgba(248, 250, 252, 0.7);
+}
+
+.packet-card-open {
+  pointer-events: auto;
+}
+
+.packet-selection-empty {
+  padding: 1.25rem;
+  border-radius: 12px;
+  border: 1px dashed rgba(255, 255, 255, 0.2);
+  background: rgba(15, 23, 42, 0.5);
+  text-align: center;
+}
+
+@media (max-width: 768px) {
+  .packet-selection-section {
+    padding: 1.5rem;
+  }
+
+  .packet-card-stats {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }
 
 .action-buttons {
