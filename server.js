@@ -420,11 +420,10 @@ app.get('/demo-portal', isAuthenticated, (req, res) => {
   res.render('demo-portal', { user: req.user });
 });
 
-app.get('/demo/attendant-packet', isAuthenticated, async (req, res) => {
+const renderAttendantPacketView = async (req, res, template) => {
   try {
-    // Get user's progress
     const attendantProgress = await AttendantProgress.findOne({ user: req.user._id });
-    res.render('attendant-packet', { 
+    res.render(template, {
       user: req.user,
       calls: attendantProgress ? attendantProgress.calls : null,
       completedCalls: attendantProgress ? attendantProgress.completedCalls : 0
@@ -433,6 +432,14 @@ app.get('/demo/attendant-packet', isAuthenticated, async (req, res) => {
     console.error('Error loading attendant packet:', err);
     res.status(500).render('error', { message: 'Error loading attendant packet' });
   }
+};
+
+app.get('/demo/attendant-packet', isAuthenticated, async (req, res) => {
+  await renderAttendantPacketView(req, res, 'attendant-packet');
+});
+
+app.get('/demo/attendant-packet-old', isAuthenticated, async (req, res) => {
+  await renderAttendantPacketView(req, res, 'attendant-packet-old');
 });
 
 // Save attendant progress
