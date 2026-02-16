@@ -41,7 +41,7 @@
   <div class="container py-4">
     <div class="d-flex justify-content-between align-items-center mb-3">
       <h1 class="mb-0">Attendant Packet</h1>
-      <a class="btn btn-outline-secondary" id="backToDemoPortalButton" href="/demo-portal">Back to Demo Portal</a>
+      <a class="btn btn-outline-secondary" id="backToMyQualificationsButton" href="/qualifications/my">Back to My Qualifications</a>
     </div>
 
     <% const statusOptions = packets.reduce((acc, pkt) => {
@@ -139,7 +139,7 @@
       <% } %>
 
       <div class="sr-only">
-        <form method="GET" action="/demo/attendant-packet" class="form-inline" id="packetSelectorForm">
+        <form method="GET" action="/qualifications/attendant-packet" class="form-inline" id="packetSelectorForm">
           <label class="mr-2">Active Packet</label>
           <select class="form-control mr-2" name="packet">
             <% packets.forEach(pkt => { %>
@@ -485,9 +485,9 @@
       const packetId = runtimeData ? runtimeData.dataset.packetId : '';
       const canManagePacket = runtimeData ? runtimeData.dataset.canManage === '1' : false;
       const canEvaluatePacket = runtimeData ? runtimeData.dataset.canEvaluate === '1' : false;
-      const backToDemoPortalButton = document.getElementById('backToDemoPortalButton');
-      if (backToDemoPortalButton) {
-        backToDemoPortalButton.addEventListener('click', function (event) {
+      const backToMyQualificationsButton = document.getElementById('backToMyQualificationsButton');
+      if (backToMyQualificationsButton) {
+        backToMyQualificationsButton.addEventListener('click', function (event) {
           event.preventDefault();
           event.stopImmediatePropagation();
           window.location.href = this.href;
@@ -681,11 +681,11 @@
             if (!payload.packetId) {
               payload.createNew = '1';
             }
-            const result = await postJson('/demo/attendant-packet/cover', payload);
+            const result = await postJson('/qualifications/attendant-packet/cover', payload);
             showAlert('Cover page saved.');
             const newPacketId = result.packetId || payload.packetId;
             if (newPacketId) {
-              window.location.href = `/demo/attendant-packet?packet=${newPacketId}`;
+              window.location.href = `/qualifications/attendant-packet?packet=${newPacketId}`;
             }
           } catch (error) {
             const duplicateText = 'already has an attendant packet';
@@ -737,7 +737,7 @@
           };
 
           try {
-            await postJson(`/demo/attendant-packet/${packetId}/calls/${callNumber}`, payload);
+            await postJson(`/qualifications/attendant-packet/${packetId}/calls/${callNumber}`, payload);
             showAlert(`Call ${callNumber} saved and set to awaiting candidate signature.`);
             setTimeout(() => window.location.reload(), 600);
           } catch (error) {
@@ -762,7 +762,7 @@
           };
 
           try {
-            await postJson(`/demo/attendant-packet/${packetId}/calls/${callNumber}/${routeMap[signType]}`, {});
+            await postJson(`/qualifications/attendant-packet/${packetId}/calls/${callNumber}/${routeMap[signType]}`, {});
             showAlert(`Call ${callNumber} ${signType.replace('-', ' ')} signature saved.`);
             setTimeout(() => window.location.reload(), 600);
           } catch (error) {
@@ -782,7 +782,7 @@
 
           const payload = Object.fromEntries(new FormData(finalReviewForm).entries());
           try {
-            await postJson(`/demo/attendant-packet/${packetId}/final-review`, payload);
+            await postJson(`/qualifications/attendant-packet/${packetId}/final-review`, payload);
             showAlert('Final review saved.');
             setTimeout(() => window.location.reload(), 600);
           } catch (error) {

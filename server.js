@@ -7,6 +7,7 @@ const MicrosoftStrategy = require('passport-microsoft').Strategy;
 const mongoose = require('mongoose');
 const MongoStore = require('connect-mongo');
 const path = require('path');
+const fs = require('fs');
 const helmet = require('helmet');
 const cookieParser = require('cookie-parser');
 const multer = require('multer');
@@ -423,7 +424,7 @@ app.get('/demo-portal', isAuthenticated, (req, res) => {
   res.render('demo-portal', { user: req.user });
 });
 
-app.get('/demo/attendant-packet-queue', isAuthenticated, async (req, res) => {
+app.get(['/qualifications/attendant-packet-queue', '/demo/attendant-packet-queue'], isAuthenticated, async (req, res) => {
   try {
     if (!canManageAttendantPackets(req.user)) {
       return res.status(403).render('error', { message: 'Access denied. Packet queue roles required.' });
@@ -744,33 +745,111 @@ const renderAttendantPacketPdfHtml = async (viewModel) => {
   return ejs.renderFile(templatePath, viewModel, { async: true });
 };
 
+const withTimeout = (promise, timeoutMs, timeoutMessage) => {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      setTimeout(() => reject(new Error(timeoutMessage)), timeoutMs);
+    })
+  ]);
+};
+
+const resolvePuppeteerExecutablePath = () => {
+  const candidatePaths = [
+    process.env.PUPPETEER_EXECUTABLE_PATH,
+    '/usr/bin/chromium',
+    '/usr/bin/chromium-browser',
+    '/usr/bin/google-chrome-stable',
+    '/usr/bin/google-chrome'
+  ].filter(Boolean);
+
+  return candidatePaths.find(candidatePath => fs.existsSync(candidatePath)) || null;
+};
+
 const generatePdfBufferFromHtml = async (html) => {
-  const launchOptions = {
-    headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox']
-  };
+  console.log('[Attendant PDF] Launching browser for PDF generation');
 
-  if (process.env.PUPPETEER_EXECUTABLE_PATH) {
-    launchOptions.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+  const executablePath = resolvePuppeteerExecutablePath();
+  if (executablePath) {
+    console.log(`[Attendant PDF] Using browser executable: ${executablePath}`);
+  } else {
+    console.log('[Attendant PDF] No explicit browser executable found. Falling back to Puppeteer default.');
   }
 
-  const browser = await puppeteer.launch(launchOptions);
-  try {
-    const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: 'networkidle0' });
-    return await page.pdf({
-      format: 'Letter',
-      printBackground: true,
-      margin: {
-        top: '0.5in',
-        right: '0.5in',
-        bottom: '0.5in',
-        left: '0.5in'
+  const baseArgs = [
+    '--no-sandbox',
+    '--disable-setuid-sandbox',
+    '--disable-dev-shm-usage',
+    '--disable-gpu'
+  ];
+
+  const launchProfiles = [
+    {
+      name: 'system-chromium-primary',
+      executablePath,
+      args: baseArgs
+    },
+    {
+      name: 'system-chromium-minimal',
+      executablePath,
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+    },
+    {
+      name: 'puppeteer-default',
+      executablePath: null,
+      args: baseArgs
+    }
+  ].filter(profile => profile.executablePath || profile.name === 'puppeteer-default');
+
+  let lastError = null;
+
+  for (const profile of launchProfiles) {
+    const launchOptions = {
+      headless: true,
+      timeout: 30000,
+      args: profile.args
+    };
+
+    if (profile.executablePath) {
+      launchOptions.executablePath = profile.executablePath;
+    }
+
+    let browser;
+    try {
+      console.log(`[Attendant PDF] Launch attempt: ${profile.name}`);
+      browser = await puppeteer.launch(launchOptions);
+      const page = await browser.newPage();
+      page.setDefaultNavigationTimeout(30000);
+      page.setDefaultTimeout(30000);
+      console.log('[Attendant PDF] Rendering HTML into browser page');
+      await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      console.log('[Attendant PDF] Generating PDF buffer');
+      const rawPdf = await page.pdf({
+        format: 'Letter',
+        printBackground: true,
+        timeout: 30000,
+        margin: {
+          top: '0.5in',
+          right: '0.5in',
+          bottom: '0.5in',
+          left: '0.5in'
+        }
+      });
+      const pdfBuffer = Buffer.isBuffer(rawPdf) ? rawPdf : Buffer.from(rawPdf);
+      console.log(`[Attendant PDF] Launch profile succeeded: ${profile.name}`);
+      return pdfBuffer;
+    } catch (err) {
+      lastError = err;
+      const message = err && err.message ? err.message : String(err);
+      console.error(`[Attendant PDF] Launch profile failed (${profile.name}): ${message}`);
+    } finally {
+      if (browser) {
+        await browser.close().catch(() => {});
       }
-    });
-  } finally {
-    await browser.close();
+    }
   }
+
+  throw lastError || new Error('Unable to generate PDF with available browser launch profiles.');
 };
 
 const renderAttendantPacketView = async (req, res, template) => {
@@ -833,7 +912,7 @@ const renderAttendantPacketView = async (req, res, template) => {
   }
 };
 
-app.get('/demo/attendant-packet', isAuthenticated, async (req, res) => {
+app.get(['/qualifications/attendant-packet', '/demo/attendant-packet'], isAuthenticated, async (req, res) => {
   await renderAttendantPacketView(req, res, 'attendant-packet');
 });
 
@@ -843,6 +922,7 @@ app.get('/demo/attendant-packet-old', isAuthenticated, async (req, res) => {
 
 app.get('/training/attendant-packets/:id/pdf', isAuthenticated, async (req, res) => {
   try {
+    console.log(`[Attendant PDF] Request received for packet ${req.params.id}`);
     const requestedScope = (req.query.scope || 'full').toString().toLowerCase();
     const scope = VALID_PACKET_PDF_SCOPES.includes(requestedScope) ? requestedScope : null;
     if (!scope) {
@@ -869,11 +949,23 @@ app.get('/training/attendant-packets/:id/pdf', isAuthenticated, async (req, res)
 
     const viewModel = buildPacketPdfViewModel(packet, scope);
     const html = await renderAttendantPacketPdfHtml(viewModel);
-    const pdfBuffer = await generatePdfBufferFromHtml(html);
+    console.log(`[Attendant PDF] HTML rendered for packet ${req.params.id}; scope=${scope}`);
+    const pdfBuffer = await withTimeout(
+      generatePdfBufferFromHtml(html),
+      45000,
+      'Timed out while generating PDF (45s limit reached).'
+    );
+
+    if (!Buffer.isBuffer(pdfBuffer) || pdfBuffer.length < 5 || pdfBuffer.slice(0, 5).toString() !== '%PDF-') {
+      throw new Error('Generated file is not a valid PDF payload.');
+    }
+
     const filename = buildPacketPdfFilename(packet, scope);
 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Length', String(pdfBuffer.length));
+    console.log(`[Attendant PDF] PDF generated successfully for packet ${req.params.id}`);
     return res.send(pdfBuffer);
   } catch (err) {
     console.error('Error generating attendant packet PDF:', err);
@@ -881,7 +973,7 @@ app.get('/training/attendant-packets/:id/pdf', isAuthenticated, async (req, res)
   }
 });
 
-app.post('/demo/attendant-packet/cover', isAuthenticated, async (req, res) => {
+app.post(['/qualifications/attendant-packet/cover', '/demo/attendant-packet/cover'], isAuthenticated, async (req, res) => {
   try {
     if (!canCreatePacket(req.user)) {
       return res.status(403).json({ success: false, error: 'Only officers can create or edit packets.' });
@@ -966,7 +1058,7 @@ app.post('/demo/attendant-packet/cover', isAuthenticated, async (req, res) => {
   }
 });
 
-app.get('/demo/attendant-packet/:id', isAuthenticated, async (req, res) => {
+app.get(['/qualifications/attendant-packet/:id', '/demo/attendant-packet/:id'], isAuthenticated, async (req, res) => {
   try {
     const packet = await AttendantPacket.findById(req.params.id)
       .populate('candidate', 'displayName email')
@@ -988,7 +1080,7 @@ app.get('/demo/attendant-packet/:id', isAuthenticated, async (req, res) => {
   }
 });
 
-app.post('/demo/attendant-packet/:id/calls/:callNumber', isAuthenticated, async (req, res) => {
+app.post(['/qualifications/attendant-packet/:id/calls/:callNumber', '/demo/attendant-packet/:id/calls/:callNumber'], isAuthenticated, async (req, res) => {
   try {
     if (!canEvaluateCallSheet(req.user)) {
       return res.status(403).json({ success: false, error: 'Only evaluators/officers can update call sheets.' });
@@ -1045,7 +1137,7 @@ app.post('/demo/attendant-packet/:id/calls/:callNumber', isAuthenticated, async 
   }
 });
 
-app.post('/demo/attendant-packet/:id/calls/:callNumber/candidate-sign', isAuthenticated, async (req, res) => {
+app.post(['/qualifications/attendant-packet/:id/calls/:callNumber/candidate-sign', '/demo/attendant-packet/:id/calls/:callNumber/candidate-sign'], isAuthenticated, async (req, res) => {
   try {
     const packet = await AttendantPacket.findById(req.params.id);
     if (!packet) {
@@ -1076,7 +1168,7 @@ app.post('/demo/attendant-packet/:id/calls/:callNumber/candidate-sign', isAuthen
   }
 });
 
-app.post('/demo/attendant-packet/:id/calls/:callNumber/evaluator-sign', isAuthenticated, async (req, res) => {
+app.post(['/qualifications/attendant-packet/:id/calls/:callNumber/evaluator-sign', '/demo/attendant-packet/:id/calls/:callNumber/evaluator-sign'], isAuthenticated, async (req, res) => {
   try {
     if (!canEvaluateCallSheet(req.user)) {
       return res.status(403).json({ success: false, error: 'Only evaluators/officers can sign this section.' });
@@ -1107,7 +1199,7 @@ app.post('/demo/attendant-packet/:id/calls/:callNumber/evaluator-sign', isAuthen
   }
 });
 
-app.post('/demo/attendant-packet/:id/calls/:callNumber/rescue-officer-sign', isAuthenticated, async (req, res) => {
+app.post(['/qualifications/attendant-packet/:id/calls/:callNumber/rescue-officer-sign', '/demo/attendant-packet/:id/calls/:callNumber/rescue-officer-sign'], isAuthenticated, async (req, res) => {
   try {
     if (!canRescueOfficerSign(req.user)) {
       return res.status(403).json({ success: false, error: 'Only rescue officers can sign this section.' });
@@ -1147,7 +1239,7 @@ app.post('/demo/attendant-packet/:id/calls/:callNumber/rescue-officer-sign', isA
   }
 });
 
-app.post('/demo/attendant-packet/:id/final-review', isAuthenticated, async (req, res) => {
+app.post(['/qualifications/attendant-packet/:id/final-review', '/demo/attendant-packet/:id/final-review'], isAuthenticated, async (req, res) => {
   try {
     if (!canPerformFinalReview(req.user)) {
       return res.status(403).json({ success: false, error: 'Only rescue chief/officer roles can complete final review.' });
