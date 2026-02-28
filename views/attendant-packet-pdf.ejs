@@ -169,12 +169,6 @@
         </table>
 
         <div class="mb-2"><span class="label">Evaluator Comments:</span> <%= call.evaluatorComments || 'None' %></div>
-        <div class="mb-2"><span class="label">Independent Field Ready:</span>
-          <%= call.independentFieldReady && call.independentFieldReady.value ? call.independentFieldReady.value.replace(/_/g, ' ') : 'not evaluated' %>
-          <% if (call.independentFieldReady && call.independentFieldReady.comments) { %>
-            - <%= call.independentFieldReady.comments %>
-          <% } %>
-        </div>
 
         <div class="signature-grid">
           <div class="signature-box">

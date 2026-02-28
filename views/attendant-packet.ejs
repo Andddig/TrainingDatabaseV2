@@ -33,6 +33,12 @@
       border-radius: 0.3rem;
       transition: box-shadow 0.3s ease;
     }
+    .cover-summary-actions > * {
+      margin-right: 0.5rem;
+    }
+    .cover-summary-actions > *:last-child {
+      margin-right: 0;
+    }
   </style>
 </head>
 <body>
@@ -255,7 +261,12 @@
       <div class="card mb-4">
         <div class="card-header d-flex justify-content-between align-items-center">
           <span>Cover Summary</span>
-          <div class="d-flex gap-2">
+          <div class="d-flex align-items-center cover-summary-actions">
+            <% if (user && user.isAdmin) { %>
+              <form method="POST" action="/qualifications/attendant-packet/<%= packet._id %>/delete" class="d-inline delete-packet-form">
+                <button type="submit" class="btn btn-sm btn-outline-danger">Delete Packet</button>
+              </form>
+            <% } %>
             <% if (canCreatePacket) { %>
               <button type="button" class="btn btn-sm btn-outline-primary" id="editCoverSheetButton">Edit Cover Sheet</button>
             <% } %>
@@ -290,6 +301,13 @@
               </div>
               <div id="collapse<%= call.callNumber %>" class="collapse" aria-labelledby="heading<%= call.callNumber %>" data-parent="#callSheets">
                 <div class="card-body">
+                  <% const currentUserId = user && user._id ? user._id.toString() : ''; %>
+                  <% const candidateSignerId = call.candidateSignature && call.candidateSignature.signedBy ? call.candidateSignature.signedBy.toString() : ''; %>
+                  <% const evaluatorSignerId = call.evaluatorSignature && call.evaluatorSignature.signedBy ? call.evaluatorSignature.signedBy.toString() : ''; %>
+                  <% const rescueOfficerSignerId = call.rescueOfficerSignature && call.rescueOfficerSignature.signedBy ? call.rescueOfficerSignature.signedBy.toString() : ''; %>
+                  <% const canClearCandidateSignature = !!(call.candidateSignature && call.candidateSignature.signedAt) && (canClearCallSignaturesAsRescueChief || candidateSignerId === currentUserId); %>
+                  <% const canClearEvaluatorSignature = !!(call.evaluatorSignature && call.evaluatorSignature.signedAt) && (canClearCallSignaturesAsRescueChief || evaluatorSignerId === currentUserId); %>
+                  <% const canClearRescueOfficerSignature = !!(call.rescueOfficerSignature && call.rescueOfficerSignature.signedAt) && (canClearCallSignaturesAsRescueChief || rescueOfficerSignerId === currentUserId); %>
                   <% if (canEvaluateCallSheet) { %>
                     <form class="call-form mb-4" data-call-number="<%= call.callNumber %>">
                       <div class="form-row">
@@ -360,23 +378,45 @@
                         <textarea class="form-control" name="evaluatorComments" rows="2"><%= call.evaluatorComments || '' %></textarea>
                       </div>
 
-                      <div class="form-row">
-                        <div class="form-group col-md-4">
-                          <label>Candidate capable of functioning independently?</label>
-                          <select class="form-control" name="independentFieldReady">
-                            <option value="not_evaluated" <%= !call.independentFieldReady || call.independentFieldReady.value === 'not_evaluated' ? 'selected' : '' %>>Not evaluated</option>
-                            <option value="yes" <%= call.independentFieldReady && call.independentFieldReady.value === 'yes' ? 'selected' : '' %>>Yes</option>
-                            <option value="no" <%= call.independentFieldReady && call.independentFieldReady.value === 'no' ? 'selected' : '' %>>No (needs more work)</option>
-                          </select>
-                        </div>
-                        <div class="form-group col-md-8">
-                          <label>Guidance if additional evaluation is needed</label>
-                          <input class="form-control" name="independentFieldComments" value="<%= call.independentFieldReady ? call.independentFieldReady.comments || '' : '' %>">
-                        </div>
-                      </div>
-
                       <button type="submit" class="btn btn-primary">Save Call Sheet (Evaluator)</button>
                     </form>
+                  <% } else { %>
+                    <div class="border rounded p-3 mb-4">
+                      <h6>Call Information</h6>
+                      <div class="row mb-2">
+                        <div class="col-md-4"><strong>Candidate Name:</strong> <%= call.candidateName || (packet.candidate ? packet.candidate.displayName : 'N/A') %></div>
+                        <div class="col-md-4"><strong>Incident Date:</strong> <%= call.incidentDate ? new Date(call.incidentDate).toLocaleDateString() : 'N/A' %></div>
+                        <div class="col-md-4"><strong>Patient Priority:</strong> <%= call.patientPriority || 'N/A' %></div>
+                      </div>
+                      <div class="row mb-2">
+                        <div class="col-md-6"><strong>Incident Type:</strong> <%= call.incidentType || 'N/A' %></div>
+                        <div class="col-md-6"><strong>FC Incident #:</strong> <%= call.fcIncidentNumber || 'N/A' %></div>
+                      </div>
+                      <p class="mb-2"><strong>Directions:</strong> <%= call.directions || 'N/A' %></p>
+
+                      <div class="table-responsive mb-2">
+                        <table class="table table-sm table-bordered mb-0">
+                          <thead>
+                            <tr>
+                              <th>Skill</th>
+                              <th style="width: 120px;">Rating</th>
+                              <th>Category Comments</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <% (call.skillRatings || []).forEach((skill) => { %>
+                              <tr class="skill-row">
+                                <td><%= skill.skill %></td>
+                                <td><%= skill.rating || 'NA' %></td>
+                                <td><%= skill.comments || '' %></td>
+                              </tr>
+                            <% }) %>
+                          </tbody>
+                        </table>
+                      </div>
+
+                      <p class="mb-0"><strong>Evaluator Comments:</strong> <%= call.evaluatorComments || 'None' %></p>
+                    </div>
                   <% } %>
 
                   <div class="border rounded p-3 mb-3">
@@ -389,6 +429,9 @@
                         <% if (packet.candidate && packet.candidate._id && packet.candidate._id.toString() === user._id.toString()) { %>
                           <button class="btn btn-outline-primary btn-sm mt-2 sign-btn" data-call-number="<%= call.callNumber %>" data-sign-type="candidate">Candidate Sign</button>
                         <% } %>
+                        <% if (canClearCandidateSignature) { %>
+                          <button class="btn btn-outline-danger btn-sm mt-2 clear-signature-btn" data-call-number="<%= call.callNumber %>" data-sign-type="candidate">Clear Signature</button>
+                        <% } %>
                       </div>
                       <div class="col-md-4">
                         <strong>Evaluator</strong><br>
@@ -396,12 +439,18 @@
                         <% if (canEvaluateCallSheet) { %>
                           <button class="btn btn-outline-primary btn-sm mt-2 sign-btn" data-call-number="<%= call.callNumber %>" data-sign-type="evaluator">Evaluator Sign</button>
                         <% } %>
+                        <% if (canClearEvaluatorSignature) { %>
+                          <button class="btn btn-outline-danger btn-sm mt-2 clear-signature-btn" data-call-number="<%= call.callNumber %>" data-sign-type="evaluator">Clear Signature</button>
+                        <% } %>
                       </div>
                       <div class="col-md-4">
                         <strong>Rescue Officer</strong><br>
                         <span><%= call.rescueOfficerSignature && call.rescueOfficerSignature.signedAt ? `${call.rescueOfficerSignature.name} (${new Date(call.rescueOfficerSignature.signedAt).toLocaleDateString()})` : 'Pending signature' %></span>
                         <% if (canRescueOfficerSign) { %>
                           <button class="btn btn-outline-success btn-sm mt-2 sign-btn" data-call-number="<%= call.callNumber %>" data-sign-type="rescue-officer">Rescue Officer Sign</button>
+                        <% } %>
+                        <% if (canClearRescueOfficerSignature) { %>
+                          <button class="btn btn-outline-danger btn-sm mt-2 clear-signature-btn" data-call-number="<%= call.callNumber %>" data-sign-type="rescue-officer">Clear Signature</button>
                         <% } %>
                       </div>
                     </div>
@@ -727,8 +776,6 @@
             fcIncidentNumber: fieldData.get('fcIncidentNumber'),
             directions: fieldData.get('directions'),
             evaluatorComments: fieldData.get('evaluatorComments'),
-            independentFieldReady: fieldData.get('independentFieldReady'),
-            independentFieldComments: fieldData.get('independentFieldComments'),
             skillRatings: skillNames.map((name, index) => ({
               skill: name,
               rating: skillRatings[index] || 'NA',
@@ -771,6 +818,31 @@
         });
       });
 
+      document.querySelectorAll('.clear-signature-btn').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          if (!packetId) {
+            showAlert('No active packet selected.', 'danger');
+            return;
+          }
+
+          const callNumber = btn.dataset.callNumber;
+          const signType = btn.dataset.signType;
+          if (!window.confirm(`Clear ${signType.replace('-', ' ')} signature for call ${callNumber}?`)) {
+            return;
+          }
+
+          try {
+            await postJson(`/qualifications/attendant-packet/${packetId}/calls/${callNumber}/clear-signature`, {
+              signatureType: signType
+            });
+            showAlert(`Call ${callNumber} ${signType.replace('-', ' ')} signature cleared.`);
+            setTimeout(() => window.location.reload(), 600);
+          } catch (error) {
+            showAlert(error.message, 'danger');
+          }
+        });
+      });
+
       const finalReviewForm = document.getElementById('finalReviewForm');
       if (finalReviewForm) {
         finalReviewForm.addEventListener('submit', async (event) => {
@@ -790,6 +862,15 @@
           }
         });
       }
+
+      document.querySelectorAll('.delete-packet-form').forEach((formEl) => {
+        formEl.addEventListener('submit', (event) => {
+          const confirmed = window.confirm('Delete this packet permanently? This cannot be undone.');
+          if (!confirmed) {
+            event.preventDefault();
+          }
+        });
+      });
 
       const openTargetFromHash = () => {
         const hash = window.location.hash;

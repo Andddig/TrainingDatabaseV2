@@ -546,6 +546,10 @@ const canPerformFinalReview = (user) => {
   return !!user && (user.isAdmin || hasAnyRole(user, ['Rescue Chief']));
 };
 
+const canClearCallSignatureAsRescueChief = (user) => {
+  return !!user && hasAnyRole(user, ['Rescue Chief']);
+};
+
 const hasAttendantPacketAccess = (packet, user) => {
   if (!packet || !user) {
     return false;
@@ -602,11 +606,7 @@ const buildDefaultCallSheets = () => {
   return Array.from({ length: 12 }, (_, idx) => ({
     callNumber: idx + 1,
     status: 'draft',
-    skillRatings: buildDefaultSkillRatings(),
-    independentFieldReady: {
-      value: 'not_evaluated',
-      comments: ''
-    }
+    skillRatings: buildDefaultSkillRatings()
   }));
 };
 
@@ -685,6 +685,39 @@ const awardAttendantQualificationForUser = async (userId, actingUserId) => {
 
 const findCallSheet = (packet, callNumber) => {
   return packet.callSheets.find(call => call.callNumber === Number(callNumber));
+};
+
+const isSignatureOwnedByUser = (signature, user) => {
+  if (!signature || !signature.signedBy || !user || !user._id) {
+    return false;
+  }
+
+  return signature.signedBy.toString() === user._id.toString();
+};
+
+const recomputeCallSheetStatus = (callSheet) => {
+  if (callSheet.rescueOfficerSignature && callSheet.rescueOfficerSignature.signedAt) {
+    callSheet.status = 'completed';
+    if (!callSheet.completedAt) {
+      callSheet.completedAt = new Date();
+    }
+    return;
+  }
+
+  if (callSheet.evaluatorSignature && callSheet.evaluatorSignature.signedAt) {
+    callSheet.status = 'awaiting_rescue_officer_signature';
+    callSheet.completedAt = null;
+    return;
+  }
+
+  if (callSheet.candidateSignature && callSheet.candidateSignature.signedAt) {
+    callSheet.status = 'awaiting_evaluator_signature';
+    callSheet.completedAt = null;
+    return;
+  }
+
+  callSheet.status = 'awaiting_candidate_signature';
+  callSheet.completedAt = null;
 };
 
 const parseDateOrNull = (value) => {
@@ -942,6 +975,7 @@ const renderAttendantPacketView = async (req, res, template) => {
       canEvaluateCallSheet: canEvaluateCallSheet(req.user),
       canRescueOfficerSign: canRescueOfficerSign(req.user),
       canPerformFinalReview: canPerformFinalReview(req.user),
+      canClearCallSignaturesAsRescueChief: canClearCallSignatureAsRescueChief(req.user),
       ratings: ['S', 'NI', 'F', 'NA'],
       calls: attendantProgress ? attendantProgress.calls : null,
       completedCalls
@@ -1102,6 +1136,30 @@ app.post(['/qualifications/attendant-packet/cover', '/demo/attendant-packet/cove
   }
 });
 
+app.post('/qualifications/attendant-packet/:id/delete', isAuthenticated, ensureAttendantPacketPageAccess, async (req, res) => {
+  try {
+    if (!req.user || !req.user.isAdmin) {
+      return res.status(403).render('error', { message: 'Only administrators can delete packets.' });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).render('error', { message: 'Invalid packet ID.' });
+    }
+
+    const packet = await AttendantPacket.findById(req.params.id);
+    if (!packet) {
+      return res.status(404).render('error', { message: 'Attendant packet not found.' });
+    }
+
+    await AttendantPacket.deleteOne({ _id: packet._id });
+
+    return res.redirect('/qualifications/attendant-packet');
+  } catch (err) {
+    console.error('Error deleting attendant packet:', err);
+    return res.status(500).render('error', { message: 'Error deleting attendant packet' });
+  }
+});
+
 app.get('/qualifications/attendant-packet/:id', isAuthenticated, ensureAttendantPacketPageAccess, async (req, res) => {
   try {
     const packet = await AttendantPacket.findById(req.params.id)
@@ -1170,10 +1228,6 @@ app.post(['/qualifications/attendant-packet/:id/calls/:callNumber', '/demo/atten
     callSheet.fcIncidentNumber = (payload.fcIncidentNumber || '').trim();
     callSheet.directions = (payload.directions || '').trim();
     callSheet.evaluatorComments = (payload.evaluatorComments || '').trim();
-    callSheet.independentFieldReady = {
-      value: ['yes', 'no', 'not_evaluated'].includes(payload.independentFieldReady) ? payload.independentFieldReady : 'not_evaluated',
-      comments: (payload.independentFieldComments || '').trim()
-    };
 
     if (Array.isArray(payload.skillRatings) && payload.skillRatings.length > 0) {
       callSheet.skillRatings = payload.skillRatings.map(entry => ({
@@ -1199,6 +1253,81 @@ app.post(['/qualifications/attendant-packet/:id/calls/:callNumber', '/demo/atten
     return res.json({ success: true, status: callSheet.status });
   } catch (err) {
     console.error('Error saving call sheet:', err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/qualifications/attendant-packet/:id/calls/:callNumber/clear-signature', isAuthenticated, async (req, res) => {
+  try {
+    const packet = await AttendantPacket.findById(req.params.id);
+    if (!packet) {
+      return res.status(404).json({ success: false, error: 'Packet not found.' });
+    }
+
+    if (!hasAttendantPacketAccess(packet, req.user)) {
+      return res.status(403).json({ success: false, error: 'Access denied.' });
+    }
+
+    const callSheet = findCallSheet(packet, req.params.callNumber);
+    if (!callSheet) {
+      return res.status(404).json({ success: false, error: 'Call sheet not found.' });
+    }
+
+    const signatureType = (req.body && req.body.signatureType ? req.body.signatureType : '').toString().trim();
+    const signatureMap = {
+      candidate: 'candidateSignature',
+      evaluator: 'evaluatorSignature',
+      'rescue-officer': 'rescueOfficerSignature'
+    };
+
+    const signatureField = signatureMap[signatureType];
+    if (!signatureField) {
+      return res.status(400).json({ success: false, error: 'Invalid signature type.' });
+    }
+
+    const signature = callSheet[signatureField];
+    if (!signature || !signature.signedAt) {
+      return res.status(400).json({ success: false, error: 'Signature is already empty.' });
+    }
+
+    const userIsSigner = isSignatureOwnedByUser(signature, req.user);
+    const userIsRescueChief = canClearCallSignatureAsRescueChief(req.user);
+    if (!userIsSigner && !userIsRescueChief) {
+      return res.status(403).json({ success: false, error: 'Only the signer or Rescue Chief can clear this signature.' });
+    }
+
+    callSheet[signatureField] = { signedBy: null, signedAt: null, name: '' };
+    if (signatureField === 'rescueOfficerSignature') {
+      callSheet.rescueOfficerId = null;
+    }
+    if (signatureField === 'evaluatorSignature') {
+      callSheet.evaluatorId = null;
+      callSheet.rescueOfficerId = null;
+      callSheet.rescueOfficerSignature = { signedBy: null, signedAt: null, name: '' };
+    }
+    if (signatureField === 'candidateSignature') {
+      callSheet.evaluatorId = null;
+      callSheet.rescueOfficerId = null;
+      callSheet.evaluatorSignature = { signedBy: null, signedAt: null, name: '' };
+      callSheet.rescueOfficerSignature = { signedBy: null, signedAt: null, name: '' };
+    }
+
+    recomputeCallSheetStatus(callSheet);
+
+    const completedCount = packet.callSheets.filter(call => call.status === 'completed').length;
+    if (packet.eligibilityPath === 'trips' && completedCount < 12) {
+      if (packet.status === 'pending_chief_review' || packet.status === 'approved' || packet.status === 'pending_more_evaluation') {
+        packet.status = 'in_progress';
+        packet.finalReview.decision = 'pending';
+      }
+    }
+
+    await packet.save();
+    await syncAttendantProgressFromPacket(packet);
+
+    return res.json({ success: true, status: callSheet.status, completedCalls: completedCount });
+  } catch (err) {
+    console.error('Error clearing call signature:', err);
     return res.status(500).json({ success: false, error: err.message });
   }
 });
