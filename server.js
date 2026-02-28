@@ -518,6 +518,18 @@ const canManageAttendantPackets = (user) => {
   return user.isAdmin || hasAnyRole(user, ['Approver', 'Training Officer', 'Rescue Officer', 'Evaluator', 'Rescue Chief']);
 };
 
+const canViewAttendantPacketPage = (user) => {
+  return !!user && (canManageAttendantPackets(user) || hasAnyRole(user, ['Student']));
+};
+
+const ensureAttendantPacketPageAccess = (req, res, next) => {
+  if (!canViewAttendantPacketPage(req.user)) {
+    return res.status(403).render('error', { message: 'Access denied. Attendant packet roles required.' });
+  }
+
+  return next();
+};
+
 const canCreatePacket = (user) => {
   return !!user && (user.isAdmin || hasAnyRole(user, ['Training Officer', 'Rescue Officer', 'Approver']));
 };
@@ -546,7 +558,7 @@ const hasAttendantPacketAccess = (packet, user) => {
   const candidateId = packet.candidate && packet.candidate._id
     ? packet.candidate._id.toString()
     : (packet.candidate ? packet.candidate.toString() : null);
-  return candidateId === user._id.toString();
+  return hasAnyRole(user, ['Student']) && candidateId === user._id.toString();
 };
 
 const ATTENDANT_SKILLS = [
@@ -888,15 +900,43 @@ const renderAttendantPacketView = async (req, res, template) => {
       ? selectedPacket.callSheets.filter(call => call.status === 'completed').length
       : (attendantProgress ? attendantProgress.completedCalls : 0);
 
-    const users = isPacketManager
-      ? await User.find({}).sort('displayName').select('displayName email roles')
-      : [];
+    let candidateUsers = [];
+    let rescueOfficers = [];
+    let rescueChiefs = [];
+
+    if (isPacketManager) {
+      const approvedCandidateIds = await AttendantPacket.distinct('candidate', {
+        status: 'approved'
+      });
+
+      const selectedCandidateId = selectedPacket && selectedPacket.candidate
+        ? (selectedPacket.candidate._id ? selectedPacket.candidate._id.toString() : selectedPacket.candidate.toString())
+        : null;
+
+      const excludedCandidateIds = approvedCandidateIds
+        .map(candidateId => candidateId.toString())
+        .filter(candidateId => candidateId !== selectedCandidateId);
+
+      [candidateUsers, rescueOfficers, rescueChiefs] = await Promise.all([
+        User.find({
+          _id: { $nin: excludedCandidateIds }
+        }).sort('displayName').select('displayName email roles'),
+        User.find({
+          roles: 'Rescue Officer'
+        }).sort('displayName').select('displayName email roles'),
+        User.find({
+          roles: 'Rescue Chief'
+        }).sort('displayName').select('displayName email roles')
+      ]);
+    }
 
     res.render(template, {
       user: req.user,
       packet: selectedPacket || null,
       packets,
-      users,
+      candidateUsers,
+      rescueOfficers,
+      rescueChiefs,
       isPacketManager,
       canCreatePacket: canCreatePacket(req.user),
       canEvaluateCallSheet: canEvaluateCallSheet(req.user),
@@ -912,7 +952,11 @@ const renderAttendantPacketView = async (req, res, template) => {
   }
 };
 
-app.get(['/qualifications/attendant-packet', '/demo/attendant-packet'], isAuthenticated, async (req, res) => {
+app.get('/qualifications/attendant-packet', isAuthenticated, ensureAttendantPacketPageAccess, async (req, res) => {
+  await renderAttendantPacketView(req, res, 'attendant-packet');
+});
+
+app.get('/demo/attendant-packet', isAuthenticated, async (req, res) => {
   await renderAttendantPacketView(req, res, 'attendant-packet');
 });
 
@@ -920,7 +964,7 @@ app.get('/demo/attendant-packet-old', isAuthenticated, async (req, res) => {
   await renderAttendantPacketView(req, res, 'attendant-packet-old');
 });
 
-app.get('/training/attendant-packets/:id/pdf', isAuthenticated, async (req, res) => {
+app.get('/training/attendant-packets/:id/pdf', isAuthenticated, ensureAttendantPacketPageAccess, async (req, res) => {
   try {
     console.log(`[Attendant PDF] Request received for packet ${req.params.id}`);
     const requestedScope = (req.query.scope || 'full').toString().toLowerCase();
@@ -1058,7 +1102,29 @@ app.post(['/qualifications/attendant-packet/cover', '/demo/attendant-packet/cove
   }
 });
 
-app.get(['/qualifications/attendant-packet/:id', '/demo/attendant-packet/:id'], isAuthenticated, async (req, res) => {
+app.get('/qualifications/attendant-packet/:id', isAuthenticated, ensureAttendantPacketPageAccess, async (req, res) => {
+  try {
+    const packet = await AttendantPacket.findById(req.params.id)
+      .populate('candidate', 'displayName email')
+      .populate('sponsoringRescueOfficer', 'displayName email')
+      .populate('rescueChief', 'displayName email');
+
+    if (!packet) {
+      return res.status(404).json({ success: false, error: 'Packet not found.' });
+    }
+
+    if (!hasAttendantPacketAccess(packet, req.user)) {
+      return res.status(403).json({ success: false, error: 'Access denied.' });
+    }
+
+    return res.json({ success: true, packet });
+  } catch (err) {
+    console.error('Error loading packet details:', err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/demo/attendant-packet/:id', isAuthenticated, async (req, res) => {
   try {
     const packet = await AttendantPacket.findById(req.params.id)
       .populate('candidate', 'displayName email')

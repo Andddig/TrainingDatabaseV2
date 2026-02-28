@@ -45,8 +45,11 @@
             <div class="dropdown-menu" aria-labelledby="qualificationsDropdown">
               <% const showQualificationAdminSection = user.roles.includes('Training Officer') || user.isAdmin; %>
               <% const showAttendantPacketQueue = user.isAdmin || user.roles.includes('Approver') || user.roles.includes('Training Officer') || user.roles.includes('Rescue Officer') || user.roles.includes('Evaluator') || user.roles.includes('Rescue Chief'); %>
+              <% const showAttendantPacket = showAttendantPacketQueue || user.roles.includes('Student'); %>
               <a class="dropdown-item" href="/qualifications/my"><i class="fas fa-user-graduate mr-2"></i> My Qualifications</a>
-              <a class="dropdown-item" href="/qualifications/attendant-packet"><i class="fas fa-clipboard-list mr-2"></i> Attendant Packet</a>
+              <% if (showAttendantPacket) { %>
+                <a class="dropdown-item" href="/qualifications/attendant-packet"><i class="fas fa-clipboard-list mr-2"></i> Attendant Packet</a>
+              <% } %>
               <% if (showQualificationAdminSection || showAttendantPacketQueue) { %>
                 <div class="dropdown-divider"></div>
               <% } %>

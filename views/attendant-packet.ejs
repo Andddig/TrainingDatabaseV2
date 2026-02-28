@@ -187,7 +187,7 @@
                     <label>EMT 2nd Attendant (Candidate)</label>
                     <select class="form-control" name="candidateId" required>
                       <option value="">Select candidate...</option>
-                      <% users.forEach(member => { %>
+                      <% candidateUsers.forEach(member => { %>
                         <option value="<%= member._id %>" <%= packet && packet.candidate && packet.candidate._id.toString() === member._id.toString() ? 'selected' : '' %>>
                           <%= member.displayName %> (<%= member.email %>)
                         </option>
@@ -197,7 +197,7 @@
                   <div class="form-group col-md-4">
                     <label>Sponsoring Rescue Officer</label>
                     <select class="form-control" name="sponsoringRescueOfficerId" required>
-                      <% users.forEach(member => { %>
+                      <% rescueOfficers.forEach(member => { %>
                         <option value="<%= member._id %>" <%= packet && packet.sponsoringRescueOfficer && packet.sponsoringRescueOfficer._id.toString() === member._id.toString() ? 'selected' : (member._id.toString() === user._id.toString() ? 'selected' : '') %>>
                           <%= member.displayName %>
                         </option>
@@ -208,7 +208,7 @@
                     <label>Rescue Chief</label>
                     <select class="form-control" name="rescueChiefId">
                       <option value="">Select chief...</option>
-                      <% users.forEach(member => { %>
+                      <% rescueChiefs.forEach(member => { %>
                         <option value="<%= member._id %>" <%= packet && packet.rescueChief && packet.rescueChief._id.toString() === member._id.toString() ? 'selected' : '' %>>
                           <%= member.displayName %>
                         </option>
